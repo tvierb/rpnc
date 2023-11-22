@@ -1,0 +1,239 @@
+#!/usr/bin/perl
+
+#   Sinn: Commandline-Taschenrechner
+#  Autor: t3o
+
+# TODO: Parser ändern, dass er zeichenweise liest, dabei in einem Modus wie zb "zahl" ist, oder "string"
+# TODO: Programmierfähigkeit -- unter einem Namen eine zu parsende Zeichenkette ablegen
+# TODO: ggf alles nach STDERR ausgeben, um im Batchmode stdout auswerrten zu koennen. ODER --quiet einbauen
+# TODO: Hilfe einbauen
+# TODO konstanten
+# TODO state lesbar speichern und lesen
+#
+use strict;
+use warnings;
+use constant REVISION => "20231121";
+use Data::Dumper;
+use FindBin;
+use YAML::Syck;
+use POSIX qw(strftime);
+use Test::More;
+# use lib "$FindBin::Bin";
+$|=1;
+$Data::Dumper::Sortkeys = 1;
+
+use Getopt::Long;
+GetOptions(
+	'help|h' => \my $need_help,
+	'test' => \my $do_tests,
+	'nosave' => \my $nosave,
+	'quiet'  => \my $be_quiet,
+);
+usage() if $need_help;
+if ($do_tests)
+{
+	note("--+- performing tests -+--");
+	# test__is_allowed_system_name();
+	done_testing;
+	exit(0);
+}
+Test::More->builder->reset;
+
+my $data = {
+	stack => [],
+	vars => {}, # store stack0 with =varname
+	history => [], # ?
+	config => {}, # config vars (output format)
+	errors => [], # collected errors, cleared when printed
+	loop => 4e4,
+	quiet => $be_quiet ? 1 : 0,
+};
+
+my $statefile = $ENV{"HOME"} . "/.rpnc";
+$data = LoadFile( $statefile ) if -f $statefile;
+$data->{ loop } = 434;
+
+my $reserved = {};
+map { $reserved->{$_} = 1 } ("sin", "cos", "inv", "swap", "swp", "drop", "dup", "clear", "clr", "pi");
+while($data->{ loop })
+{
+	show( $data ) unless $data->{ quiet };
+	chomp(my $input = <STDIN>);
+	print "\n" unless $data->{ quiet };
+	parse($data, $input, $reserved);
+}
+DumpFile( $statefile, $data );
+print "Saved state to '$statefile'.\n";
+exit(0);
+
+# ----------------------------------------------------------------------------
+sub show
+{
+	my $data = shift;
+
+	# print Dumper( $data );
+	if (scalar keys %{ $data->{ vars }})
+	{
+		my $s = "";
+		map { $s .= "$_=" . $data->{ vars }->{ $_ } . " " } sort keys %{ $data->{ vars } };
+		print "VARS: " . substr($s, 0, -1) . "\n" unless $be_quiet;
+	}
+	
+	print "Stack:\n";
+	my $number = scalar @{ $data->{ stack } };
+	
+	for (my $i = $number - 1; $i >= 0; $i--)
+	{
+		printf("  #%2s : %s\n", $i, $data->{ stack }->[ $i ]);
+	}
+	print "  -empty-\n" unless $number;
+	
+	if (@{ $data->{ errors } } > 0)
+	{
+		map { print "ERROR: $_\n" } @{ $data->{ errors } };
+		$data->{ errors } = [];
+	}
+	print "INPUT> ";
+}
+
+# ----------------------------------------------------------------------------
+# Erstmal als pr00f of concept ein ganz simpler Parser, der anhand Leerzeichen auftrennt
+sub parse
+{
+	my ($data, $input, $reserved_words) = @_;
+	foreach my $atom (split(/ +/, $input))
+	{
+		if (($atom eq "clr") || ($atom eq "clear"))
+		{
+			$data->{ stack } = [];
+			next;
+		}
+
+		elsif ($atom eq "q")
+		{
+			$data->{ loop } = 0;
+			next;
+		}
+
+		elsif ($atom eq "dump")
+		{
+			print Dumper( $data );
+			next;
+		}
+
+		elsif ($atom =~ /^[0-9]+(\.[0-9]+)?$/)
+		{
+			unshift @{ $data->{ stack } }, $atom;
+			next;
+		}
+
+		elsif ($atom eq "+")
+		{
+			if (assert_two_elements_on_stack($data))
+			{
+				my $a = shift( @{ $data->{ stack } } );
+				my $b = shift( @{ $data->{ stack } } );
+				unshift( @{ $data->{ stack } }, $a + $b );
+			}
+			next;
+		}
+
+		elsif ($atom eq "-")
+		{
+			if (assert_two_elements_on_stack($data))
+			{
+				my $a = shift( @{ $data->{ stack } } );
+				my $b = shift( @{ $data->{ stack } } );
+				unshift( @{ $data->{ stack } }, $b - $a );
+			}
+			next;
+		}
+
+		elsif ($atom eq "*")
+		{
+			if (assert_two_elements_on_stack($data))
+			{
+				my $a = shift( @{ $data->{ stack } } );
+				my $b = shift( @{ $data->{ stack } } );
+				unshift( @{ $data->{ stack } }, $b * $a );
+			}
+			next;
+		}
+		elsif ($atom eq "/")
+		{
+			if (assert_two_elements_on_stack($data))
+			{
+				if ($data->{ stack }->[0] == 0)
+				{
+					push( @{ $data->{errors} }, "division by zero" );
+				}
+				else {
+					my $a = shift( @{ $data->{ stack } } );
+					my $b = shift( @{ $data->{ stack } } );
+					unshift( @{ $data->{ stack } }, $b / $a );
+				}
+			}
+			next;
+		}
+
+		elsif ($atom =~ /^=([a-z][a-z0-9_-]*)/i)
+		{
+			if (assert_one_element_on_stack($data))
+			{
+				my $varname = $1;
+				if (defined( $reserved_words->{ $varname }))
+				{
+					push( @{ $data->{errors} }, "reserved word '$varname'" );
+					next;
+				}
+				$data->{ vars }->{ $varname } = $data->{ stack }->[0];
+				shift( @{ $data->{ stack } } );
+			}
+			next;
+		}
+
+		elsif (defined( $data->{ vars }->{ $atom } ))
+		{
+			unshift @{ $data->{ stack } }, $data->{ vars }->{ $atom };
+			next;
+		}
+
+		else {
+			push( @{ $data->{errors} }, "unknown atom '$atom'!?!?" );
+		}
+	}
+}
+
+# ----------------------------------------------------------------------------
+sub assert_one_element_on_stack
+{
+	my $data = shift;
+	if (scalar @{ $data->{ stack } })
+	{
+		return 1;
+	}
+	push( @{ $data->{errors} }, "stack underflowi (1)" );
+	return 0;
+}
+# ----------------------------------------------------------------------------
+sub assert_two_elements_on_stack
+{
+	my $data = shift;
+	if (scalar @{ $data->{ stack } } >= 2)
+	{
+		return 1;
+	}
+	push( @{ $data->{errors} }, "stack underflow" );
+	return 0;
+}
+
+# ----------------------------------------------------------------------------
+sub usage
+{
+	my $msg = shift;
+	print "$0 REVISION " . REVISION . "\n";
+	print "ERROR: $msg\n" if defined $msg;
+	print "Usage: $0 ....\n";
+	exit(1);
+}
+
