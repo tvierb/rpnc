@@ -8,7 +8,6 @@
 # TODO: ggf alles nach STDERR ausgeben, um im Batchmode stdout auswerrten zu koennen. ODER --quiet einbauen
 # TODO: Hilfe einbauen
 # TODO konstanten
-# TODO state lesbar speichern und lesen
 #
 use strict;
 use warnings;
