@@ -128,7 +128,6 @@ sub has_two_numbers
 sub operate
 {
 	my ($self, $atom) = @_;
-	die("Not an " . Parser->OPERATOR) unless $atom->{ type } eq Parser->OPERATOR;
 	my $type = $atom->{ type };
 	my $operation = $atom->{ value };
 	if ($type eq Parser->OPERATOR)
@@ -146,6 +145,13 @@ sub operate
 	elsif ($type eq Parser->INTERNAL)
 	{
 	# TODO  add internal operators
+		if (($operation eq "drop") || ($operation eq "d"))
+		{
+			if (scalar @{ $self->{ stack }} > 0)
+			{
+				shift( @{ $self->{ stack } } );
+			}
+		}
 	}
 	else
 	{
