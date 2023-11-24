@@ -3,6 +3,7 @@
 #   Sinn: Commandline-Taschenrechner
 #  Autor: t3o
 
+# TODO what is the intended difference between INTERNAL and OPERATOR?
 # DONE: Parser ändern, dass er zeichenweise liest, dabei in einem Modus wie zb "zahl" ist, oder "string"
 # DONE brauchen (eigentlich) Typen für Dinge auf dem Stack (das koennte ein Package sein)
 
@@ -152,6 +153,17 @@ sub operate
 				shift( @{ $self->{ stack } } );
 			}
 		}
+		elsif ($operation eq "swap")
+		{
+			if (scalar @{ $self->{ stack }} >= 2)
+			{
+				my $b = shift( @{ $self->{ stack }} );
+				my $a = shift( @{ $self->{ stack }} );
+				$self->onto_stack( $b );
+				$self->onto_stack( $a );
+			}
+		}
+
 	}
 	else
 	{
@@ -233,7 +245,7 @@ sub next_atom
 	{
 		return [{type => Parser->OPERATOR, value => $1}, $2]; # operator
 	}
-	elsif ($stream =~ /^(clr|clear|vars|q|dump|drop|d)(.*)/)
+	elsif ($stream =~ /^(clr|clear|vars|q|dump|drop|d|swap)(.*)/)
 	{
 		return [{type => Parser->INTERNAL, value => $1}, $2]; # internal operation
 	}
