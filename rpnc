@@ -3,23 +3,170 @@
 #   Sinn: Commandline-Taschenrechner
 #  Autor: t3o
 
-# TODO: Parser ändern, dass er zeichenweise liest, dabei in einem Modus wie zb "zahl" ist, oder "string"
-#   TODO: brauchen (eigentlich) Typen für Dinge auf dem Stack
+# TODO: 50% Parser ändern, dass er zeichenweise liest, dabei in einem Modus wie zb "zahl" ist, oder "string"
+#   TODO: 30% brauchen (eigentlich) Typen für Dinge auf dem Stack
+
+# TODO: rechner als package/object organisiern, um Testfunktionen schreiben zu koennen
+
 # TODO: Programmierfähigkeit -- unter einem Namen eine zu parsende Zeichenkette ablegen
 # TODO: ggf alles nach STDERR ausgeben, um im Batchmode stdout auswerrten zu koennen. ODER --quiet einbauen
 # TODO: Hilfe einbauen
 # TODO konstanten
 #
+use constant REVISION => "20231124";
+
+# ==============================================================
+package TheMachine;
 use strict;
 use warnings;
-use constant REVISION => "20231124";
 use Data::Dumper;
-use FindBin;
 use YAML::Syck;
-use POSIX qw(strftime);
+
+sub new
+{
+	my $classname = shift;
+	my %params = @_;
+	my $self = bless({}, $classname);
+
+	$self->{ stack } = [];
+	$self->{ vars  } = {};
+	$self->{ flags } = {}; # TODO config vars (output format)
+	$self->{ errors} = []; # collected errors, cleared when printed
+	$self->{ loop  } = 4e4;
+	$self->{ persistent }  = defined( $params{"persistent"} ) && $params{"persistent"} ? 1 : 0;
+	$self->load_state( "~/.rpnc" ) if $self->{ persistent };
+	$self->{ reserved } = {};
+	map { $self->{ reserved }->{$_} = 1 } ("sin", "cos", "inv", "swap", "swp", "drop", "dup", "clear", "clr", "pi");
+	return $self;
+}
+
+sub load_state
+{
+	my ($self, $filename) = @_;
+	return unless -f $filename;
+	my $state = LoadFile( $filename );
+	$self->{ stack } = $state->{ stack };
+	$self->{ vars  } = $state->{ vars  };
+	$self->{ flags } = $state->{ flags };
+}
+
+
+sub save_state
+{
+	my ($self, $filename) = @_;
+	my $state = {
+		stack => $self->{ stack },
+		vars  => $self->{ vars  },
+		flags => $self->{ flags },
+		revision => main->REVISION,
+	};
+	DumpFile( $filename, $state );
+}
+
+sub shutdown
+{
+	my ($self) = @_;
+	$self->save_state( "~/.rpnc" ) if $self->{ persistent };
+}
+
+# ----------------------------------------------------------------------------
+sub show
+{
+	my ($self) = shift;
+
+	my $vars = $self->{ vars };
+	if (scalar keys %{ $vars })
+	{
+		my $s = "";
+		map { $s .= "$_=" . $vars->{ $_ } . " " } sort keys %{ $vars };
+		print "VARS: " . substr($s, 0, -1) . "\n";
+	}
+	
+	print "Stack:\n";
+	my $stack = $self->{ stack };
+	my $number = scalar @{ $stack };
+	
+	for (my $i = $number - 1; $i >= 0; $i--)
+	{
+		printf("  #%2s : %s\n", $i, $stack->[ $i ]);
+	}
+	print "  -empty-\n" unless $number;
+	
+	if (@{ $self->{ errors } } > 0)
+	{
+		map { print "ERROR: $_\n" } @{ $self->{ errors } };
+		$self->{ errors } = [];
+	}
+	print "INPUT> ";
+}
+
+1;
+
+# ==============================================================
+package Parser;
+use strict;
+use warnings;
+
+use constant END_OF_STREAM => "end-of-stream";
+use constant NUMBER => "number";
+use constant OPERATOR => "operator";
+use constant INTERNAL => "internal";
+use constant STRING => "string";
+use constant SYMBOL => "symbol";
+
+# static function
+sub next_atom
+{
+	my $stream = shift;
+	$stream =~ s/^ //g;
+	if (! length($stream))
+	{
+		return [{type => Parser->END_OF_STREAM, value => "moo"}, ""];
+	}
+	if ($stream =~ /^(-[0-9+]([\.][0-9]+)?)(.*)/)
+	{
+		return [{type => Parser->NUMBER, value => $1}, $3]; # negative number
+	}
+	elsif ($stream =~ /^([0-9+]([\.][0-9]+)?)(.*)/)
+	{
+		return [{type => Parser->NUMBER, value => $1}, $3]; # positive number
+	}
+	elsif ($stream =~ /^([\/\*\-\+])(.*)/)
+	{
+		return [{type => Parser->OPERATOR, value => $1}, $2]; # operator
+	}
+	elsif ($stream =~ /^(clr|clear|vars|q|dump|drop|d)(.*)/)
+	{
+		return [{type => Parser->INTERNAL, value => $1}, $2]; # internal operation
+	}
+	elsif ($stream =~ /^"([^"]*)"(.*)/)
+	{
+		return [{type => Parser->STRING, value => $1}, $2]; # string object
+	}
+	elsif ($stream =~ /^'([^']*)'(.*)/)
+	{
+		return [{type => Parser->STRING, value => $1}, $2]; # string object
+	}
+	elsif ($stream =~ /^([a-zA-Z][a-zA-Z0-9_]*)(.*)/)
+	{
+		return [{type => Parser->SYMBOL, value => $1}, $2]; # vars/symbol
+	}
+	return [{type => Parser->UNKNOWN, value => $stream}, ""];
+}
+1;
+
+# ==============================================================
+package main;
+
+use strict;
+use warnings;
+use Data::Dumper;
+use YAML::Syck;
 use Test::More;
 use Test::Exception;
-# use lib "$FindBin::Bin";
+#use Parser;
+#use TheMachine;
+
 $|=1;
 $Data::Dumper::Sortkeys = 1;
 
@@ -28,236 +175,69 @@ GetOptions(
 	'help|h' => \my $need_help,
 	'test' => \my $do_tests,
 	'nosave' => \my $nosave,
-	'quiet'  => \my $be_quiet,
+	# 'quiet'  => \my $be_quiet,
 );
 usage() if $need_help;
 if ($do_tests)
 {
 	note("--+- performing tests -+--");
 	# test__is_allowed_system_name();
-	is_deeply( next_atom("5"), [{type => "number", value => "5"}, ""], "next_atom" );
-	is_deeply( next_atom("5+"), [{type => "number", value => "5"}, "+"], "next_atom" );
+	is_deeply( Parser::next_atom("54321"), [{type => Parser->NUMBER, value => "54321"}, ""], "Parser::next_atom" );
+	is_deeply( Parser::next_atom("3.14159"), [{type => Parser->NUMBER, value => "3.14159"}, ""], "Parser::next_atom" );
+	is_deeply( Parser::next_atom("5+"), [{type => Parser->NUMBER, value => "5"}, "+"], "Parser::next_atom" );
 
 	my $s = "3.6 1.8/";
-	my $r = next_atom( $s );
-	is_deeply( $r, [{type => "number", value => "3.6"}, " 1.8/"], "next_atom $s" );
+	my $r = Parser::next_atom( $s );
+	is_deeply( $r, [{type => Parser->NUMBER, value => "3.6"}, " 1.8/"], "Parser::next_atom $s" );
 
 	$s = $r->[1];
-	$r = next_atom( $s );
-	is_deeply( $r, [{type => "number", value => "1.8"}, "/"], "next_atom $s" );
+	$r = Parser::next_atom( $s );
+	is_deeply( $r, [{type => Parser->NUMBER, value => "1.8"}, "/"], "Parser::next_atom $s" );
 
 	$s = $r->[1];
-	$r = next_atom( $s );
-	is_deeply( $r, [{type => "operator", value => "/"}, ""], "next_atom $s" );
+	$r = Parser::next_atom( $s );
+	is_deeply( $r, [{type => Parser->OPERATOR, value => "/"}, ""], "Parser::next_atom $s" );
 
-	$s = $r->[1];
-	dies_ok { next_atom( $s ) } 'expected to die on next_atom("")';
+	$s = $r->[1]; # Expected end
+	$r = Parser::next_atom( $s );
+	is_deeply( $r, [{type => Parser->END_OF_STREAM, value => "moo"}, ""], "END_OF_STREAM" );
 
-	is_deeply( next_atom("clear5+"), [{type => "internal", value => "clear"}, "5+"], "next_atom / clear" );
-	is_deeply( next_atom("clr6+")  , [{type => "internal", value => "clr"}, "6+"], "next_atom / clear" );
-	is_deeply( next_atom("fahrenheit")  , [{type => "symbol", value => "fahrenheit"}, ""], "next_atom / symbol" );
-	is_deeply( next_atom("fahrenheit*")  , [{type => "symbol", value => "fahrenheit"}, "*"], "next_atom / symbol" );
+	is_deeply( Parser::next_atom("clear5+"), [{type => Parser->INTERNAL, value => "clear"}, "5+"], "Parser::next_atom / clear" );
+	is_deeply( Parser::next_atom("clr6+")  , [{type => Parser->INTERNAL, value => "clr"}, "6+"], "Parser::next_atom / clear" );
+	is_deeply( Parser::next_atom("fahrenheit")  , [{type => Parser->SYMBOL, value => "fahrenheit"}, ""], "Parser::next_atom / symbol" );
+	is_deeply( Parser::next_atom("fahrenheit*")  , [{type => Parser->SYMBOL, value => "fahrenheit"}, "*"], "Parser::next_atom / symbol" );
 
 	done_testing;
 	exit(0);
 }
 Test::More->builder->reset;
 
-my $data = {
-	stack => [],
-	vars => {}, # store stack0 with =varname
-	history => [], # ?
-	config => {}, # config vars (output format)
-	errors => [], # collected errors, cleared when printed
-	loop => 4e4,
-	quiet => $be_quiet ? 1 : 0,
-};
-
-my $statefile = $ENV{"HOME"} . "/.rpnc";
-$data = LoadFile( $statefile ) if -f $statefile;
-$data->{ loop } = 434;
-
-my $reserved = {};
-map { $reserved->{$_} = 1 } ("sin", "cos", "inv", "swap", "swp", "drop", "dup", "clear", "clr", "pi");
-while($data->{ loop })
+print "Welcome to the wunderful world of R-P-N-C\n";
+my $rpnc = TheMachine->new( persistent => $nosave ? 0 : 1 );
+my $loop = 434;
+while ($loop)
 {
-	show( $data ) unless $data->{ quiet };
+	$rpnc->show();
 	chomp(my $input = <STDIN>);
-	print "\n" unless $data->{ quiet };
-	parse($data, $input, $reserved);
+	my $atom;
+	while(434)
+	{
+		my $thingy = Parser::next_atom( $input );
+		$atom  = $thingy->[0];
+		$input = $thingy->[1];
+		print "Got atom: " . Dumper($atom);
+		if ($atom->[0]->{type} eq "q")
+		{
+			$loop = 0;
+			last;
+		}
+		last if $atom->{type} eq Parser->END_OF_STREAM;
+	}
 }
-DumpFile( $statefile, $data );
-print "Saved state to '$statefile'.\n";
+$rpnc->shutdown();
 exit(0);
 
-# ----------------------------------------------------------------------------
-sub show
-{
-	my $data = shift;
 
-	# print Dumper( $data );
-	if (scalar keys %{ $data->{ vars }})
-	{
-		my $s = "";
-		map { $s .= "$_=" . $data->{ vars }->{ $_ } . " " } sort keys %{ $data->{ vars } };
-		print "VARS: " . substr($s, 0, -1) . "\n" unless $be_quiet;
-	}
-	
-	print "Stack:\n";
-	my $number = scalar @{ $data->{ stack } };
-	
-	for (my $i = $number - 1; $i >= 0; $i--)
-	{
-		printf("  #%2s : %s\n", $i, $data->{ stack }->[ $i ]);
-	}
-	print "  -empty-\n" unless $number;
-	
-	if (@{ $data->{ errors } } > 0)
-	{
-		map { print "ERROR: $_\n" } @{ $data->{ errors } };
-		$data->{ errors } = [];
-	}
-	print "INPUT> ";
-}
-
-# ----------------------------------------------------------------------------
-# Erstmal als pr00f of concept ein ganz simpler Parser, der anhand Leerzeichen auftrennt
-sub parse
-{
-	my ($data, $input, $reserved_words) = @_;
-	foreach my $atom (split(/ +/, $input))
-	{
-		if (($atom eq "clr") || ($atom eq "clear"))
-		{
-			$data->{ stack } = [];
-			next;
-		}
-
-		elsif ($atom eq "q")
-		{
-			$data->{ loop } = 0;
-			next;
-		}
-
-		elsif ($atom eq "dump")
-		{
-			print Dumper( $data );
-			next;
-		}
-
-		elsif ($atom =~ /^[0-9]+(\.[0-9]+)?$/)
-		{
-			unshift @{ $data->{ stack } }, $atom;
-			next;
-		}
-
-		elsif ($atom eq "+")
-		{
-			if (assert_two_elements_on_stack($data))
-			{
-				my $a = shift( @{ $data->{ stack } } );
-				my $b = shift( @{ $data->{ stack } } );
-				unshift( @{ $data->{ stack } }, $a + $b );
-			}
-			next;
-		}
-
-		elsif ($atom eq "-")
-		{
-			if (assert_two_elements_on_stack($data))
-			{
-				my $a = shift( @{ $data->{ stack } } );
-				my $b = shift( @{ $data->{ stack } } );
-				unshift( @{ $data->{ stack } }, $b - $a );
-			}
-			next;
-		}
-
-		elsif ($atom eq "*")
-		{
-			if (assert_two_elements_on_stack($data))
-			{
-				my $a = shift( @{ $data->{ stack } } );
-				my $b = shift( @{ $data->{ stack } } );
-				unshift( @{ $data->{ stack } }, $b * $a );
-			}
-			next;
-		}
-		elsif ($atom eq "/")
-		{
-			if (assert_two_elements_on_stack($data))
-			{
-				if ($data->{ stack }->[0] == 0)
-				{
-					push( @{ $data->{errors} }, "division by zero" );
-				}
-				else {
-					my $a = shift( @{ $data->{ stack } } );
-					my $b = shift( @{ $data->{ stack } } );
-					unshift( @{ $data->{ stack } }, $b / $a );
-				}
-			}
-			next;
-		}
-
-		elsif ($atom =~ /^=([a-z][a-z0-9_-]*)/i)
-		{
-			if (assert_one_element_on_stack($data))
-			{
-				my $varname = $1;
-				if (defined( $reserved_words->{ $varname }))
-				{
-					push( @{ $data->{errors} }, "reserved word '$varname'" );
-					next;
-				}
-				$data->{ vars }->{ $varname } = $data->{ stack }->[0];
-				shift( @{ $data->{ stack } } );
-			}
-			next;
-		}
-
-		elsif (defined( $data->{ vars }->{ $atom } ))
-		{
-			unshift @{ $data->{ stack } }, $data->{ vars }->{ $atom };
-			next;
-		}
-
-		else {
-			push( @{ $data->{errors} }, "unknown atom '$atom'!?!?" );
-		}
-	}
-}
-
-sub next_atom
-{
-	my $stream = shift;
-	$stream =~ s/^ //g;
-	if ($stream =~ /^(-[0-9+]([\.][0-9]+)?)(.*)/)
-	{
-		return [{type => "number", value => $1}, $3]; # negative number
-	}
-	elsif ($stream =~ /^([0-9+]([\.][0-9]+)?)(.*)/)
-	{
-		return [{type => "number", value => $1}, $3]; # positive number
-	}
-	elsif ($stream =~ /^([\/\*\-\+])(.*)/)
-	{
-		return [{type => "operator", value => $1}, $2]; # operator
-	}
-	elsif ($stream =~ /^(clr|clear|vars|q|dump|drop|d)(.*)/)
-	{
-		return [{type => "internal", value => $1}, $2]; # internal operation
-	}
-	elsif ($stream =~ /^"([^"]*)"(.*)/)
-	{
-		return [{type => "string", value => $1}, $2]; # string object
-	}
-	elsif ($stream =~ /^([a-zA-Z][a-zA-Z0-9_]*)(.*)/)
-	{
-		return [{type => "symbol", value => $1}, $2]; # vars/symbol
-	}
-	die("Cannot extract another atom from stream >$stream<");
-}
 
 # ----------------------------------------------------------------------------
 sub assert_one_element_on_stack
