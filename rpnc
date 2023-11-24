@@ -3,7 +3,7 @@
 #   Sinn: Commandline-Taschenrechner
 #  Autor: t3o
 
-# TODO what is the intended difference between INTERNAL and OPERATOR?
+# TODO do we need 3 over (ovr) ? or "<n> copy"?
 # DONE: Parser ändern, dass er zeichenweise liest, dabei in einem Modus wie zb "zahl" ist, oder "string"
 # DONE brauchen (eigentlich) Typen für Dinge auf dem Stack (das koennte ein Package sein)
 
@@ -87,13 +87,15 @@ sub do
 	{
 		$self->onto_stack( $atom );
 	}
-	elsif ($type eq Parser->INTERNAL)
-	{
-		$self->operate( $atom );
-	}
 	else {
-		die("what can I do with type='$type'?");
+		$self->error("Unknown atom type '$type' with value '" . $atom->{ value } . "'. Skipped.");
 	}
+}
+
+sub error
+{
+	my ($self, $message) = @_;
+	push( @{ $self->{errors} }, $message );
 }
 
 
@@ -138,15 +140,7 @@ sub operate
 			$self->add();
 			return;
 		}
-		else {
-			die("unknown operation >$operation<");
-		}
-	# TODO add more operators
-	}
-	elsif ($type eq Parser->INTERNAL)
-	{
-	# TODO  add internal operators
-		if (($operation eq "drop") || ($operation eq "d"))
+		elsif (($operation eq "drop") || ($operation eq "d"))
 		{
 			if (scalar @{ $self->{ stack }} > 0)
 			{
@@ -167,7 +161,9 @@ sub operate
 		{
 			$self->{ stack } = [];
 		}
-
+		else {
+			die("unknown operation >$operation<");
+		}
 	}
 	else
 	{
@@ -224,9 +220,9 @@ use warnings;
 use constant END_OF_STREAM => "end-of-stream";
 use constant NUMBER => "number";
 use constant OPERATOR => "operator";
-use constant INTERNAL => "internal";
 use constant STRING => "string";
 use constant SYMBOL => "symbol";
+use constant UNKNOWN => "unknown";
 
 # static function
 sub next_atom
@@ -251,7 +247,7 @@ sub next_atom
 	}
 	elsif ($stream =~ /^(clr|clear|vars|q|dump|drop|d|swap)(.*)/)
 	{
-		return [{type => Parser->INTERNAL, value => $1}, $2]; # internal operation
+		return [{type => Parser->OPERATOR, value => $1}, $2]; # internal operation
 	}
 	elsif ($stream =~ /^"([^"]*)"(.*)/)
 	{
@@ -316,8 +312,8 @@ if ($do_tests)
 	$r = Parser::next_atom( $s );
 	is_deeply( $r, [{type => Parser->END_OF_STREAM, value => "moo"}, ""], "END_OF_STREAM" );
 
-	is_deeply( Parser::next_atom("clear5+"), [{type => Parser->INTERNAL, value => "clear"}, "5+"], "Parser::next_atom / clear" );
-	is_deeply( Parser::next_atom("clr6+")  , [{type => Parser->INTERNAL, value => "clr"}, "6+"], "Parser::next_atom / clear" );
+	is_deeply( Parser::next_atom("clear5+"), [{type => Parser->OPERATOR, value => "clear"}, "5+"], "Parser::next_atom / clear" );
+	is_deeply( Parser::next_atom("clr6+")  , [{type => Parser->OPERATOR, value => "clr"}, "6+"], "Parser::next_atom / clear" );
 	is_deeply( Parser::next_atom("fahrenheit")  , [{type => Parser->SYMBOL, value => "fahrenheit"}, ""], "Parser::next_atom / symbol" );
 	is_deeply( Parser::next_atom("fahrenheit*")  , [{type => Parser->SYMBOL, value => "fahrenheit"}, "*"], "Parser::next_atom / symbol" );
 
@@ -349,13 +345,13 @@ while ($loop)
 		# print " DEBUGGING atom from stream: " . Dumper($atom);
 		my $type = $atom->{ type };
 		last if $type eq Parser->END_OF_STREAM;
-		if (($type eq Parser->INTERNAL) && ($atom->{value} eq "q")) # quit
+		if (($type eq Parser->OPERATOR) && ($atom->{value} eq "q")) # quit
 		{
 			$loop = 0;
 			last;
 		}
 		else {
-			$rpnc->do( $atom ); # handle NUMBER INTERNAL OPERATION
+			$rpnc->do( $atom ); # handle NUMBER OPERATOR
 		}
 	}
 }
