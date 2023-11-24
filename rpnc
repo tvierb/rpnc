@@ -102,12 +102,40 @@ sub error
 # add two number of type Parser->NUMBER
 sub add
 {
-	my ($self) = @_;
+	my $self = shift;
+	my %params = @_;
+	my $invert = defined($params{"invert"}) && $params{invert} ? 1 : 0;
 	if ($self->has_two_numbers())
 	{
 		my $b = shift( @{ $self->{ stack } } );
+		$b->{value} = -1 * $b->{value} if $invert;
 		my $a = shift( @{ $self->{ stack } } );
 		$self->onto_stack( {type => Parser->NUMBER, value => $a->{ value } + $b->{ value } } );
+	}
+}
+
+sub mul
+{
+	my $self = shift;
+	my %params = @_;
+	my $invert = defined($params{"invert"}) && $params{invert} ? 1 : 0;
+	if ($self->has_two_numbers())
+	{
+		my $b = shift( @{ $self->{ stack } } ); # consume atoms
+		my $a = shift( @{ $self->{ stack } } ); # consume
+		if ($invert)
+		{
+			if ($b->{ value } == 0)
+			{
+				$self->error("division by zero");
+			}
+			else {
+				$self->onto_stack( {type => Parser->NUMBER, value => $a->{ value } / $b->{ value } } );
+			}
+		}
+		else {
+			$self->onto_stack( {type => Parser->NUMBER, value => $a->{ value } * $b->{ value } } );
+		}
 	}
 }
 
@@ -138,6 +166,21 @@ sub operate
 		if ($operation eq "+")
 		{
 			$self->add();
+			return;
+		}
+		elsif ($operation eq "-")
+		{
+			$self->add( invert => 1 );
+			return;
+		}
+		elsif ($operation eq "*")
+		{
+			$self->mul();
+			return;
+		}
+		elsif ($operation eq "/")
+		{
+			$self->mul( invert => 1 );
 			return;
 		}
 		elsif (($operation eq "drop") || ($operation eq "d"))
