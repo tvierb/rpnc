@@ -163,6 +163,10 @@ sub operate
 				$self->onto_stack( $a );
 			}
 		}
+		elsif (($operation eq "clear") || ($operation eq "clr"))
+		{
+			$self->{ stack } = [];
+		}
 
 	}
 	else
