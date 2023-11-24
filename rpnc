@@ -3,15 +3,10 @@
 #   Sinn: Commandline-Taschenrechner
 #  Autor: t3o
 
-# -> + einbauen
-
 # DONE: Parser ändern, dass er zeichenweise liest, dabei in einem Modus wie zb "zahl" ist, oder "string"
-# TODO: brauchen (eigentlich) Typen für Dinge auf dem Stack
-
-# TODO: rechner als package/object organisiern, um Testfunktionen schreiben zu koennen
+# DONE brauchen (eigentlich) Typen für Dinge auf dem Stack (das koennte ein Package sein)
 
 # TODO: Programmierfähigkeit -- unter einem Namen eine zu parsende Zeichenkette ablegen
-# TODO: ggf alles nach STDERR ausgeben, um im Batchmode stdout auswerrten zu koennen. ODER --quiet einbauen
 # TODO: Hilfe einbauen
 # TODO konstanten
 #
