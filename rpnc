@@ -50,6 +50,11 @@ sub load_state
 	$self->{ flags } = $state->{ flags };
 }
 
+sub push
+{
+	my ($self, $atom) = @_;
+	push( @{ $self->{ stack } }, $atom );
+}
 
 sub save_state
 {
@@ -84,13 +89,14 @@ sub show
 	
 	print "Stack:\n";
 	my $stack = $self->{ stack };
-	my $number = scalar @{ $stack };
-	
-	for (my $i = $number - 1; $i >= 0; $i--)
-	{
-		printf("  #%2s : %s\n", $i, $stack->[ $i ]);
-	}
-	print "  -empty-\n" unless $number;
+	print "stack in wrong order :-) : " . Dumper($stack);
+#	my $number = scalar @{ $stack };
+#	
+#	for (my $i = $number - 1; $i >= 0; $i--)
+#	{
+#		printf("  #%2s : %s\n", $i, $stack->[ $i ]);
+#	}
+#	print "  -empty-\n" unless $number;
 	
 	if (@{ $self->{ errors } } > 0)
 	{
@@ -226,12 +232,19 @@ while ($loop)
 		$atom  = $thingy->[0];
 		$input = $thingy->[1];
 		print "Got atom: " . Dumper($atom);
-		if ($atom->[0]->{type} eq "q")
+		if ($atom->{type} eq Parser->INTERNAL)
 		{
-			$loop = 0;
-			last;
+			if ($atom->{value} eq "q") # quit
+			{
+				$loop = 0;
+				last;
+			}
 		}
 		last if $atom->{type} eq Parser->END_OF_STREAM;
+		if ($atom->{type} eq Parser->NUMBER)
+		{
+			$rpnc->push( $atom );
+		}
 	}
 }
 $rpnc->shutdown();
