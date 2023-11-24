@@ -295,7 +295,7 @@ while ($loop)
 		my $thingy = Parser::next_atom( $input );
 		$atom  = $thingy->[0];
 		$input = $thingy->[1];
-		print " ATOM " . Dumper($atom);
+		# print " DEBUGGING atom from stream: " . Dumper($atom);
 		my $type = $atom->{ type };
 		last if $type eq Parser->END_OF_STREAM;
 		if ($type eq Parser->INTERNAL)
