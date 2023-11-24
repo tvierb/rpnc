@@ -34,7 +34,8 @@ sub new
 	$self->{ errors} = []; # collected errors, cleared when printed
 	$self->{ loop  } = 4e4;
 	$self->{ persistent }  = defined( $params{"persistent"} ) && $params{"persistent"} ? 1 : 0;
-	$self->load_state( "~/.rpnc" ) if $self->{ persistent };
+	$self->{ statefile } = $ENV{"HOME"} . "/.rpnc";
+	$self->load_state() if $self->{ persistent };
 	$self->{ reserved } = {};
 	map { $self->{ reserved }->{$_} = 1 } ("sin", "cos", "inv", "swap", "swp", "drop", "dup", "clear", "clr", "pi");
 	return $self;
@@ -42,9 +43,9 @@ sub new
 
 sub load_state
 {
-	my ($self, $filename) = @_;
-	return unless -f $filename;
-	my $state = LoadFile( $filename );
+	my ($self) = @_;
+	return unless -f $self->{ statefile };
+	my $state = LoadFile( $self->{ statefile } );
 	$self->{ stack } = $state->{ stack };
 	$self->{ vars  } = $state->{ vars  };
 	$self->{ flags } = $state->{ flags };
@@ -58,20 +59,21 @@ sub push
 
 sub save_state
 {
-	my ($self, $filename) = @_;
+	my ($self) = @_;
 	my $state = {
 		stack => $self->{ stack },
 		vars  => $self->{ vars  },
 		flags => $self->{ flags },
 		revision => main->REVISION,
+		comment => "statefile of the RPNC rpn calculator",
 	};
-	DumpFile( $filename, $state );
+	DumpFile( $self->{ statefile }, $state );
 }
 
 sub shutdown
 {
 	my ($self) = @_;
-	$self->save_state( "~/.rpnc" ) if $self->{ persistent };
+	$self->save_state() if $self->{ persistent };
 }
 
 # ----------------------------------------------------------------------------
