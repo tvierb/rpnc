@@ -3,8 +3,10 @@
 #   Sinn: Commandline-Taschenrechner
 #  Autor: t3o
 
-# TODO: 50% Parser ändern, dass er zeichenweise liest, dabei in einem Modus wie zb "zahl" ist, oder "string"
-#   TODO: 30% brauchen (eigentlich) Typen für Dinge auf dem Stack
+# -> + einbauen
+
+# DONE: Parser ändern, dass er zeichenweise liest, dabei in einem Modus wie zb "zahl" ist, oder "string"
+# TODO: brauchen (eigentlich) Typen für Dinge auf dem Stack
 
 # TODO: rechner als package/object organisiern, um Testfunktionen schreiben zu koennen
 
@@ -51,10 +53,11 @@ sub load_state
 	$self->{ flags } = $state->{ flags };
 }
 
-sub push
+# push or better unshift element to stack
+sub onto_stack
 {
 	my ($self, $atom) = @_;
-	push( @{ $self->{ stack } }, $atom );
+	unshift( @{ $self->{ stack } }, $atom );
 }
 
 sub save_state
@@ -74,6 +77,51 @@ sub shutdown
 {
 	my ($self) = @_;
 	$self->save_state() if $self->{ persistent };
+}
+
+# add two number of type Parser->NUMBER
+sub add
+{
+	my ($self) = @_;
+	if ($self->has_two_numbers())
+	{
+		my $b = shift( @{ $self->{ stack } } );
+		my $a = shift( @{ $self->{ stack } } );
+		$self->onto_stack( {type => Parser->NUMBER, value => $a->{ value } + $b->{ value } } );
+	}
+}
+
+sub has_two_numbers
+{
+	my $self = shift;
+	if (scalar @{ $self->{ stack }} < 2)
+	{
+		push( @{ $self->{errors} }, "stack underflow, needed 2 elements" );
+		return 0;
+	}
+	if (($self->{ stack }->[0]->{ type } eq Parser->NUMBER)
+	&&  ($self->{ stack }->[1]->{ type } eq Parser->NUMBER))
+	{
+		return 1;
+	}
+	push( @{ $self->{errors} }, "not both elements are numbers" );
+	return 0;
+}
+
+sub operate
+{
+	my ($self, $atom) = @_;
+	die("Not an " . Parser->OPERATOR) unless $atom->{ type } eq Parser->OPERATOR;
+	my $operation = $atom->{ value };
+	if ($operation eq "+")
+	{
+		$self->add();
+		return;
+	}
+	else {
+		die("unknown operation >$operation<");
+	}
+	# TODO add more operators
 }
 
 # ----------------------------------------------------------------------------
@@ -233,8 +281,10 @@ while ($loop)
 		my $thingy = Parser::next_atom( $input );
 		$atom  = $thingy->[0];
 		$input = $thingy->[1];
-		print "Got atom: " . Dumper($atom);
-		if ($atom->{type} eq Parser->INTERNAL)
+		print " ATOM " . Dumper($atom);
+		my $type = $atom->{ type };
+		last if $type eq Parser->END_OF_STREAM;
+		if ($type eq Parser->INTERNAL)
 		{
 			if ($atom->{value} eq "q") # quit
 			{
@@ -242,10 +292,13 @@ while ($loop)
 				last;
 			}
 		}
-		last if $atom->{type} eq Parser->END_OF_STREAM;
-		if ($atom->{type} eq Parser->NUMBER)
+		elsif ($type eq Parser->NUMBER)
 		{
-			$rpnc->push( $atom );
+			$rpnc->onto_stack( $atom );
+		}
+		elsif ($type eq Parser->OPERATOR)
+		{
+			$rpnc->operate( $atom );
 		}
 	}
 }
