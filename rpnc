@@ -281,7 +281,14 @@ my $loop = 434;
 while ($loop)
 {
 	$rpnc->show();
-	chomp(my $input = <STDIN>);
+	my $input = <STDIN>;
+	unless (defined $input) # Ctrl-d
+	{
+		print "\n";
+		last;
+	}
+	chomp($input);
+
 	my $atom;
 	while(434)
 	{
