@@ -139,14 +139,21 @@ sub show
 	
 	print "Stack:\n";
 	my $stack = $self->{ stack };
-	print "stack in wrong order :-) : " . Dumper($stack);
-#	my $number = scalar @{ $stack };
-#	
-#	for (my $i = $number - 1; $i >= 0; $i--)
-#	{
-#		printf("  #%2s : %s\n", $i, $stack->[ $i ]);
-#	}
-#	print "  -empty-\n" unless $number;
+	# print "stack in wrong order :-) : " . Dumper($stack);
+	my $number = scalar @{ $stack };
+	
+	for (my $i = $number - 1; $i >= 0; $i--)
+	{
+		my $atom = $stack->[ $i ];
+		if ($atom->{type} eq Parser->NUMBER)
+		{
+			printf("  #%2s : %s\n", $i, $atom->{value}); # TODO add format
+		}
+		else {
+			printf("  #%2s : %s\n", $i, "unknown entity: " . Dumper($atom));
+		}
+	}
+	print "  -empty-\n" unless $number;
 	
 	if (@{ $self->{ errors } } > 0)
 	{
