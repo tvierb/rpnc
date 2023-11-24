@@ -79,6 +79,28 @@ sub shutdown
 	$self->save_state() if $self->{ persistent };
 }
 
+sub do
+{
+	my ($self, $atom) = @_;
+	my $type = $atom->{ type };
+	if ($type eq Parser->OPERATOR)
+	{
+		$self->operate( $atom );
+	}
+	elsif ($type eq Parser->NUMBER)
+	{
+		$self->onto_stack( $atom );
+	}
+	elsif ($type eq Parser->INTERNAL)
+	{
+		$self->operate( $atom );
+	}
+	else {
+		die("what can I do with type='$type'?");
+	}
+}
+
+
 # add two number of type Parser->NUMBER
 sub add
 {
@@ -112,16 +134,28 @@ sub operate
 {
 	my ($self, $atom) = @_;
 	die("Not an " . Parser->OPERATOR) unless $atom->{ type } eq Parser->OPERATOR;
+	my $type = $atom->{ type };
 	my $operation = $atom->{ value };
-	if ($operation eq "+")
+	if ($type eq Parser->OPERATOR)
 	{
-		$self->add();
-		return;
-	}
-	else {
-		die("unknown operation >$operation<");
-	}
+		if ($operation eq "+")
+		{
+			$self->add();
+			return;
+		}
+		else {
+			die("unknown operation >$operation<");
+		}
 	# TODO add more operators
+	}
+	elsif ($type eq Parser->INTERNAL)
+	{
+	# TODO  add internal operators
+	}
+	else
+	{
+		die("Unknown type '$type' in ->operate");
+	}
 }
 
 # ----------------------------------------------------------------------------
