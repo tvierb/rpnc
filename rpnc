@@ -3,14 +3,8 @@
 #   Sinn: Commandline-Pocketcalculator
 #  Autor: t3o 2023++
 
-# TODO "<n> copy" (5 cp) to get the fith element copied as new element on the stack?
-# TODO we have self->{ flags } -- unused. discard it?
 # DONE change the parser to read char by char in a mode like "number" or "string"
 # DONE we need types of things on the stack
-
-# TODO make it programmable a bit forth like. that is define words that result in atoms been put on a program stack? that may call other words. how can we do this?
-# TODO add in-program help
-# TODO add constants like PI, Avocado, Na, Newton Gravity G -- make it configurable in the config file? how can we show that list in the program? is it a read-only "var"?
 #
 use constant REVISION => "20231208";
 
