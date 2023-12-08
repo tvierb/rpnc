@@ -15,6 +15,7 @@ use warnings;
 use Data::Dumper;
 use YAML::Syck;
 
+use constant SAVEFILE_VERSION => 2;
 sub new
 {
 	my $classname = shift;
@@ -26,24 +27,35 @@ sub new
 	$self->{ flags } = {}; # TODO config vars (output format)
 	$self->{ errors} = []; # collected errors, cleared when printed
 	$self->{ loop  } = 4e4;
-	$self->{ persistent }  = defined( $params{"persistent"} ) && $params{"persistent"} ? 1 : 0;
-	$self->{ statefile } = $ENV{"HOME"} . "/.rpnc";
-	$self->load_state() if $self->{ persistent };
+	$self->{ do_load_state } = ($params{'noload'} // 0) ? 0 : 1; # default: load_state
+	$self->{ do_save_state } = ($params{'nosave'} // 0) ? 0 : 1;
+	$self->{ statefile } = $params{statefile} // $ENV{"HOME"} . "/.rpnc";
+	$self->load_state() if $self->{ do_load_state };
 	$self->{ reserved } = {};
 	map { $self->{ reserved }->{$_} = 1 } ("sin", "cos", "inv", "swap", "swp", "drop", "dup", "clear", "clr", "pi");
 	return $self;
 }
 
+# --------------------------------------------------------
+# load the machine state of last session
+# TODO let the main package load the state and put it into the machine with setters
 sub load_state
 {
 	my ($self) = @_;
 	return unless -f $self->{ statefile };
+	# print "Loading state from file '" . $self->{ statefile } . "'\n";
 	my $state = LoadFile( $self->{ statefile } );
+	if (! (defined( $state->{_version}) && ( $state->{_version} == $self->SAVEFILE_VERSION)))
+	{
+		die("state file version mismatch. I found >" . $state->{_version} . "< but I need >" . $self->SAVEFILE_VERSION . "<");
+	}
+
 	$self->{ stack } = $state->{ stack };
 	$self->{ vars  } = $state->{ vars  };
 	$self->{ flags } = $state->{ flags };
 }
 
+# --------------------------------------------------------
 # push or better unshift element to stack
 sub onto_stack
 {
@@ -51,25 +63,30 @@ sub onto_stack
 	unshift( @{ $self->{ stack } }, $atom );
 }
 
+# --------------------------------------------------------
 sub save_state
 {
 	my ($self) = @_;
 	my $state = {
+		_version => $self->SAVEFILE_VERSION,
 		stack => $self->{ stack },
 		vars  => $self->{ vars  },
 		flags => $self->{ flags },
 		revision => main->REVISION,
 		comment => "statefile of the RPNC rpn calculator",
 	};
+	# print "Saving state " . Dumper( $state );
 	DumpFile( $self->{ statefile }, $state );
 }
 
+# --------------------------------------------------------
 sub shutdown
 {
 	my ($self) = @_;
-	$self->save_state() if $self->{ persistent };
+	$self->save_state() if $self->{ do_save_state };
 }
 
+# --------------------------------------------------------
 sub do
 {
 	my ($self, $atom) = @_;
@@ -87,6 +104,7 @@ sub do
 	}
 }
 
+# --------------------------------------------------------
 sub error
 {
 	my ($self, $message) = @_;
@@ -94,6 +112,7 @@ sub error
 }
 
 
+# --------------------------------------------------------
 # add two number of type Parser->NUMBER
 sub add
 {
@@ -109,6 +128,7 @@ sub add
 	}
 }
 
+# --------------------------------------------------------
 sub mul
 {
 	my $self = shift;
@@ -134,6 +154,7 @@ sub mul
 	}
 }
 
+# --------------------------------------------------------
 sub has_two_numbers
 {
 	my $self = shift;
@@ -151,6 +172,7 @@ sub has_two_numbers
 	return 0;
 }
 
+# --------------------------------------------------------
 sub operate
 {
 	my ($self, $atom) = @_;
@@ -309,6 +331,7 @@ package main;
 use strict;
 use warnings;
 use Data::Dumper;
+use Getopt::Long;
 use YAML::Syck;
 use Test::More;
 use Test::Exception;
@@ -318,11 +341,12 @@ use Test::Exception;
 $|=1;
 $Data::Dumper::Sortkeys = 1;
 
-use Getopt::Long;
 GetOptions(
 	'help|h' => \my $need_help,
 	'test' => \my $do_tests,
-	'nosave' => \my $nosave,
+	'nosave' => \my $nosave,         # default: false
+	'noload' => \my $noload,         # default: false
+	'statefile=s' => \my $statefile, # default: HOME/.rpnc
 	# 'quiet'  => \my $be_quiet,
 );
 usage() if $need_help;
@@ -361,7 +385,11 @@ if ($do_tests)
 Test::More->builder->reset;
 
 print "Welcome to the wunderful world of R-P-N-C\n";
-my $rpnc = TheMachine->new( persistent => $nosave ? 0 : 1 );
+my $rpnc = TheMachine->new(
+	nosave => $nosave,
+	noload => $noload,
+	statefile => $statefile,
+);
 my $loop = 434;
 while ($loop)
 {
