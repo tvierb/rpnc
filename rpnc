@@ -254,10 +254,10 @@ sub show
 		my $atom = $stack->[ $i ];
 		if ($atom->{type} eq Parser->NUMBER)
 		{
-			printf("  #%2s : %s\n", $i, $atom->{value}); # TODO add format
+			printf("  %2s : %s\n", '#' . $i, $atom->{value}); # TODO add format
 		}
 		else {
-			printf("  #%2s : %s\n", $i, "unknown entity: " . Dumper($atom));
+			printf("  %2s : %s\n", '#' . $i, "unknown entity: " . Dumper($atom));
 		}
 	}
 	print "  -empty-\n" unless $number;
