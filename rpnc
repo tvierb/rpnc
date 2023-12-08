@@ -158,18 +158,23 @@ sub mul
 sub has_two_numbers
 {
 	my $self = shift;
-	if (scalar @{ $self->{ stack }} < 2)
-	{
-		push( @{ $self->{errors} }, "stack underflow, needed 2 elements" );
-		return 0;
-	}
-	if (($self->{ stack }->[0]->{ type } eq Parser->NUMBER)
-	&&  ($self->{ stack }->[1]->{ type } eq Parser->NUMBER))
+	if ($self->idx_is_number(0) && $self->idx_is_number(1))
 	{
 		return 1;
 	}
-	push( @{ $self->{errors} }, "not both elements are numbers" );
+
+	push( @{ $self->{errors} }, "not two numbers on stack" );
 	return 0;
+}
+
+# is stack place #3 there and is it a number?
+# is it counting from 0? yes (why? because it is the index of the element)
+sub idx_is_number
+{
+	my ($self, $index) = @_;
+	return 0 if scalar@{ $self->{ stack }} >= ($index + 1);
+	return 0 if ($self->{ stack }->[ $index ]->{ type } ne Parser->NUMBER);
+	return 1;
 }
 
 # --------------------------------------------------------
