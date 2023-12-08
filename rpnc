@@ -155,6 +155,33 @@ sub mul
 }
 
 # --------------------------------------------------------
+# copy stack element idx and push it on stack
+#
+# #2  3.14
+# #1  234
+# #0  0.3
+#
+# now: "3 cp":
+#
+# #3  15
+# #2  12
+# #1  3
+# #0  cp
+#
+# -> will take the value of the element that is on index 3 after removing "cp" and "3".
+#sub copy
+#{
+#	my $self = shift;
+#	if ($self->idx_is_number(0)) # cmd was there before
+#	{
+#		BAUSTELLE
+#		my $index = shift( @{ $self->{ stack } } ); # consume atom
+#		$self->onto_stack( {type => Parser->NUMBER, value => $index->{value} } );
+#	}
+#}
+
+
+# --------------------------------------------------------
 sub has_two_numbers
 {
 	my $self = shift;
