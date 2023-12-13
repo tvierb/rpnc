@@ -183,6 +183,12 @@ sub pop
 	return $elem;
 }
 
+sub count_stack
+{
+	my $self = shift;
+	return scalar @{ $self->{ stack } };
+}
+
 # --------------------------------------------------------
 # copy stack element idx and push it on stack
 #
