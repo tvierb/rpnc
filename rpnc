@@ -54,7 +54,8 @@ sub load_state
 	return unless -f $self->{ statefile };
 	# print "Loading state from file '" . $self->{ statefile } . "'\n";
 	my $state = LoadFile( $self->{ statefile } );
-	if (! (defined( $state->{_version}) && ( $state->{_version} == $self->SAVEFILE_VERSION)))
+	my $version = $state->{_version} // "-1";
+	if ($version != $self->SAVEFILE_VERSION)
 	{
 		die("state file version mismatch. I found >" . $state->{_version} . "< but I need >" . $self->SAVEFILE_VERSION . "<");
 	}
@@ -66,7 +67,7 @@ sub load_state
 
 # --------------------------------------------------------
 # push or better unshift element to stack
-sub onto_stack
+sub push
 {
 	my ($self, $atom) = @_;
 	unshift( @{ $self->{ stack } }, $atom );
@@ -106,7 +107,7 @@ sub do
 	}
 	elsif ($type eq Parser->NUMBER)
 	{
-		$self->onto_stack( $atom );
+		$self->push( $atom );
 	}
 	else {
 		$self->error("Unknown atom type '$type' with value '" . $atom->{ value } . "'. Skipped.");
@@ -117,7 +118,7 @@ sub do
 sub error
 {
 	my ($self, $message) = @_;
-	push( @{ $self->{errors} }, $message );
+	CORE::push( @{ $self->{errors} }, $message );
 }
 
 
@@ -133,7 +134,7 @@ sub add
 		my $b = shift( @{ $self->{ stack } } );
 		$b->{value} = -1 * $b->{value} if $invert;
 		my $a = shift( @{ $self->{ stack } } );
-		$self->onto_stack( {type => Parser->NUMBER, value => $a->{ value } + $b->{ value } } );
+		$self->push( {type => Parser->NUMBER, value => $a->{ value } + $b->{ value } } );
 	}
 }
 
@@ -154,13 +155,51 @@ sub mul
 				$self->error("division by zero");
 			}
 			else {
-				$self->onto_stack( {type => Parser->NUMBER, value => $a->{ value } / $b->{ value } } );
+				$self->push( {type => Parser->NUMBER, value => $a->{ value } / $b->{ value } } );
 			}
 		}
 		else {
-			$self->onto_stack( {type => Parser->NUMBER, value => $a->{ value } * $b->{ value } } );
+			$self->push( {type => Parser->NUMBER, value => $a->{ value } * $b->{ value } } );
 		}
 	}
+}
+
+# --------------------------------------------------------
+# -- : --
+# TODO implement test
+sub drop
+{
+	my $self = shift;
+	if (scalar @{ $self->{ stack }} > 0)
+	{
+		shift( @{ $self->{ stack } } ); # consume
+	}
+}
+
+# index : element at index
+# TODO implement test
+sub get_at_index
+{
+	my ($self, $index) = @_;
+	return $self->{ stack }->[ $index ]; # can be undefined
+
+	#print STDERR "index=$index\n";
+	#if (scalar @{ $self->{ stack }} >= ($index + 1))
+	#{
+	#	return $self->{ stack }->[ $index ];
+	#}
+}
+
+# TODO implement test
+sub pop
+{
+	my $self = shift;
+	my $elem = $self->get_at_index( 0 );
+	if (defined($elem))
+	{
+		$self->drop();
+	}
+	return $elem;
 }
 
 # --------------------------------------------------------
@@ -178,16 +217,25 @@ sub mul
 # #0  cp
 #
 # -> will take the value of the element that is on index 3 after removing "cp" and "3".
-#sub copy
-#{
-#	my $self = shift;
-#	if ($self->idx_is_number(0)) # cmd was there before
-#	{
-#		BAUSTELLE
-#		my $index = shift( @{ $self->{ stack } } ); # consume atom
-#		$self->onto_stack( {type => Parser->NUMBER, value => $index->{value} } );
-#	}
-#}
+sub copy
+{
+	my $self = shift;
+	my $index = $self->pop();
+	if ($index->{ type } ne Parser->NUMBER)
+	{
+		$self->error("expected index to element on stack but popped a non-number");
+		return;
+	}
+	$index = $index->{ value };
+	my $elem = get_at_index( $index );
+	if (! defined($elem))
+	{
+		$self->error("no element on stack at index $index");
+		return;
+	}
+	my %hash_copy = %{ $elem };
+	$self->push( \%hash_copy );
+}
 
 
 # --------------------------------------------------------
@@ -199,7 +247,7 @@ sub has_two_numbers
 		return 1;
 	}
 
-	push( @{ $self->{errors} }, "not two numbers on stack" );
+	$self->error( "not two numbers on stack" );
 	return 0;
 }
 
@@ -243,10 +291,13 @@ sub operate
 		}
 		elsif (($operation eq "drop") || ($operation eq "d"))
 		{
-			if (scalar @{ $self->{ stack }} > 0)
-			{
-				shift( @{ $self->{ stack } } );
-			}
+			$self->drop();
+			return;
+		}
+		elsif (($operation eq "copy") || ($operation eq "cp"))
+		{
+			$self->copy();
+			return;
 		}
 		elsif ($operation eq "swap")
 		{
@@ -254,8 +305,8 @@ sub operate
 			{
 				my $b = shift( @{ $self->{ stack }} );
 				my $a = shift( @{ $self->{ stack }} );
-				$self->onto_stack( $b );
-				$self->onto_stack( $a );
+				$self->push( $b );
+				$self->push( $a );
 			}
 		}
 		elsif (($operation eq "clear") || ($operation eq "clr"))
@@ -346,7 +397,7 @@ sub next_atom
 	{
 		return [{type => Parser->OPERATOR, value => $1}, $2]; # operator
 	}
-	elsif ($stream =~ /^(clr|clear|vars|q|dump|drop|d|swap)(.*)/)
+	elsif ($stream =~ /^(clr|clear|vars|q|dump|drop|d|swap|copy|cp)(.*)/)
 	{
 		return [{type => Parser->OPERATOR, value => $1}, $2]; # internal operation
 	}
