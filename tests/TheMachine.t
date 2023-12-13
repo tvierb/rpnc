@@ -40,9 +40,16 @@ ok( $m->idx_is_of_type( 0, Parser->NUMBER ), "element at #0 is a NUMBER" );
 
 $m->push( $p->as_number( -15 ) );
 ok( $m->idx_is_of_type( 1, Parser->NUMBER ), "element at #1 is also a NUMBER" );
+ok( $m->has_two_numbers(), "has_two_numbers() ist true" );
+note( Dumper( $m->{ stack } ) );
 
 $m->add();
 is( $m->count_stack(), 1, "adding two numbers results in a single stack elememt" );
+my $e = $m->pop();
+is( ref $e, "HASH", "thing on tstack is hashref");
+is( $e->{type}, Parser->NUMBER, "thing is a number");
+is( $e->{value}, 0, "thing is zero");
+
 # TODO this fails
 
 #my $statefilecontent = "--- 

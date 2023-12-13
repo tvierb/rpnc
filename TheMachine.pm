@@ -239,7 +239,7 @@ sub copy
 sub has_two_numbers
 {
 	my $self = shift;
-	unless ($self->count_stack() < 2)
+	if ($self->count_stack() < 2)
 	{
 		$self->error( "not two things on the stack" );
 		return 0;
