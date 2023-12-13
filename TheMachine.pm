@@ -21,9 +21,19 @@ sub new
 	$self->{ do_save_state } = ($params{'nosave'} // 0) ? 0 : 1;
 	$self->{ statefile } = $params{statefile} // $ENV{"HOME"} . "/.rpnc";
 	$self->load_state() if $self->{ do_load_state };
-	$self->{ reserved } = {};
-	map { $self->{ reserved }->{$_} = 1 } ("sin", "cos", "inv", "swap", "swp", "drop", "dup", "clear", "clr", "pi");
+	$self->{ operators } = {};
+	map { $self->{ operators }->{$_} = 1 } ("sin", "cos", "inv", "swap", "swp", "drop", "dup", "clear", "clr", "pi", "+", "-", "*", "/");
 	return $self;
+}
+
+# --------------------------------------------------------
+# get list of reserved operators / function names
+sub operators
+{
+	my $self = shift;
+	my @result = ();
+	map { CORE::push( @result, $_ ) } keys %{ $self->{ operators } };
+	return \@result;
 }
 
 # --------------------------------------------------------
@@ -229,13 +239,30 @@ sub copy
 sub has_two_numbers
 {
 	my $self = shift;
-	if ($self->idx_is_number(0) && $self->idx_is_number(1))
+	unless ($self->count_stack() < 2)
 	{
-		return 1;
+		$self->error( "not two things on the stack" );
+		return 0;
 	}
 
-	$self->error( "not two numbers on stack" );
-	return 0;
+	foreach my $id ( (0, 1) )
+	{
+		unless ($self->idx_is_of_type( $id, Parser->NUMBER ))
+		{
+			$self->error( "element #$id is not a number" );
+			return 0;
+		}
+	}
+	return 1;
+}
+
+sub idx_is_of_type
+{
+	my ($self, $index, $type) = @_;
+	my $thing = $self->get_at_index( $index );
+	return 0 unless ref $thing;
+	return 0 unless $thing->{type} eq $type;
+	return 1;
 }
 
 # is stack place #3 there and is it a number?
@@ -313,7 +340,7 @@ sub operate
 # ----------------------------------------------------------------------------
 sub show
 {
-	my ($self) = shift;
+	my $self = shift;
 
 	my $vars = $self->{ vars };
 	if (scalar keys %{ $vars })

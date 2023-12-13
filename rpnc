@@ -34,46 +34,12 @@ $Data::Dumper::Sortkeys = 1;
 
 GetOptions(
 	'help|h' => \my $need_help,
-	'test' => \my $do_tests,
 	'nosave' => \my $nosave,         # default: false
 	'noload' => \my $noload,         # default: false
 	'statefile=s' => \my $statefile, # default: HOME/.rpnc
 	# 'quiet'  => \my $be_quiet,
 );
 usage() if $need_help;
-if ($do_tests)
-{
-	note("--+- performing tests -+--");
-	# test__is_allowed_system_name();
-	is_deeply( Parser::next_atom("54321"), [{type => Parser->NUMBER, value => "54321"}, ""], "Parser::next_atom" );
-	is_deeply( Parser::next_atom("3.14159"), [{type => Parser->NUMBER, value => "3.14159"}, ""], "Parser::next_atom" );
-	is_deeply( Parser::next_atom("5+"), [{type => Parser->NUMBER, value => "5"}, "+"], "Parser::next_atom" );
-
-	my $s = "3.6 1.8/";
-	my $r = Parser::next_atom( $s );
-	is_deeply( $r, [{type => Parser->NUMBER, value => "3.6"}, " 1.8/"], "Parser::next_atom $s" );
-
-	$s = $r->[1];
-	$r = Parser::next_atom( $s );
-	is_deeply( $r, [{type => Parser->NUMBER, value => "1.8"}, "/"], "Parser::next_atom $s" );
-
-	$s = $r->[1];
-	$r = Parser::next_atom( $s );
-	is_deeply( $r, [{type => Parser->OPERATOR, value => "/"}, ""], "Parser::next_atom $s" );
-
-	$s = $r->[1]; # Expected end
-	$r = Parser::next_atom( $s );
-	is_deeply( $r, [{type => Parser->END_OF_STREAM, value => "moo"}, ""], "END_OF_STREAM" );
-
-	is_deeply( Parser::next_atom("clear5+"), [{type => Parser->OPERATOR, value => "clear"}, "5+"], "Parser::next_atom / clear" );
-	is_deeply( Parser::next_atom("clr6+")  , [{type => Parser->OPERATOR, value => "clr"}, "6+"], "Parser::next_atom / clear" );
-	is_deeply( Parser::next_atom("fahrenheit")  , [{type => Parser->SYMBOL, value => "fahrenheit"}, ""], "Parser::next_atom / symbol" );
-	is_deeply( Parser::next_atom("fahrenheit*")  , [{type => Parser->SYMBOL, value => "fahrenheit"}, "*"], "Parser::next_atom / symbol" );
-
-	done_testing;
-	exit(0);
-}
-Test::More->builder->reset;
 
 print "Welcome to the wunderful world of R-P-N-C\n";
 my $rpnc = TheMachine->new(
@@ -81,6 +47,9 @@ my $rpnc = TheMachine->new(
 	noload => $noload,
 	statefile => $statefile,
 );
+my $ops = $rpnc->operators();
+push(@$ops, 'q');
+my $pa = Parser->new( operators => $rpnc->operators() );
 my $loop = 434;
 while ($loop)
 {
@@ -96,7 +65,7 @@ while ($loop)
 	my $atom;
 	while(434)
 	{
-		my $thingy = Parser::next_atom( $input );
+		my $thingy = $pa->next_atom( $input );
 		$atom  = $thingy->[0];
 		$input = $thingy->[1];
 		# print " DEBUGGING atom from stream: " . Dumper($atom);
