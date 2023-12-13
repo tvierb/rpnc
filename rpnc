@@ -5,8 +5,17 @@
 
 # DONE change the parser to read char by char in a mode like "number" or "string"
 # DONE we need types of things on the stack
+# TODO inv
+# TODO ^
+# TODO do we need 3 over (ovr) ? or "<n> copy"?
+# DONE: Parser ändern, dass er zeichenweise liest, dabei in einem Modus wie zb "zahl" ist, oder "string"
+# DONE brauchen (eigentlich) Typen für Dinge auf dem Stack (das koennte ein Package sein)
+
+# TODO: Programmierfähigkeit -- unter einem Namen eine zu parsende Zeichenkette ablegen
+# TODO: Hilfe einbauen
+# TODO konstanten
 #
-use constant REVISION => "20231208";
+use constant REVISION => "20231213";
 
 # ==============================================================
 package TheMachine;
