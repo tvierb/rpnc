@@ -96,7 +96,7 @@ sub do
 	{
 		$self->operate( $atom );
 	}
-	elsif ($type eq Parser->NUMBER)
+	elsif (($type eq Parser->NUMBER) || ($type eq Parser->STRING))
 	{
 		$self->push( $atom );
 	}
