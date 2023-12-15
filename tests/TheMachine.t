@@ -7,7 +7,7 @@ use Test::Deep;
 use Data::Dumper;
 use File::Temp qw(tempfile);
 use FindBin;
-use lib "$FindBin::Bin/..";
+use lib "$FindBin::Bin/../lib";
 use TheMachine;
 use Parser;
 
