@@ -18,10 +18,10 @@ sub new
 	$self->{ flags } = {}; # TODO config vars (output format)
 	$self->{ errors} = []; # collected errors, cleared when printed
 	$self->{ loop  } = 4e4;
-	$self->{ do_load_state } = ($params{'noload'} // 0) ? 0 : 1; # default: load_state
-	$self->{ do_save_state } = ($params{'nosave'} // 0) ? 0 : 1;
-	$self->{ statefile } = $params{statefile} // $ENV{"HOME"} . "/.rpnc";
-	$self->load_state() if $self->{ do_load_state };
+	# $self->{ do_load_state } = ($params{'noload'} // 0) ? 0 : 1; # default: load_state
+	# $self->{ do_save_state } = ($params{'nosave'} // 0) ? 0 : 1;
+	# $self->{ statefile } = $params{statefile} // $ENV{"HOME"} . "/.rpnc";
+	# $self->load_state() if $self->{ do_load_state };
 	$self->{ operators } = {};
 	map { $self->{ operators }->{$_} = 1 } ("sin", "cos", "inv", "swap", "swp", "drop", "dup", "clear", "clr", "pi", "+", "-", "*", "/");
 	return $self;
@@ -254,6 +254,7 @@ sub has_two_numbers
 	foreach my $id ( (0, 1) )
 	{
 		my $thing = $self->{ stack }->[ $id ];
+		print "thing: " . Dumper($thing);
 		unless ($thing->is_number())
 		{
 			$self->error( "element #$id is not a number" );

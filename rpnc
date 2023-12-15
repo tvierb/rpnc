@@ -15,7 +15,6 @@
 # TODO: Hilfe einbauen
 # TODO konstanten
 #
-use constant REVISION => "20231213";
 
 use strict;
 use warnings;
@@ -29,6 +28,8 @@ use lib "$FindBin::Bin/lib";
 use Parser;
 use TheMachine;
 
+use constant REVISION => "20231213";
+use constant SAVEFILE_VERSION => 2;
 $|=1;
 $Data::Dumper::Sortkeys = 1;
 
@@ -42,11 +43,29 @@ GetOptions(
 usage() if $need_help;
 
 print "Welcome to the wunderful world of R-P-N-C\n";
-my $rpnc = TheMachine->new(
-	nosave => $nosave,
-	noload => $noload,
-	statefile => $statefile,
-);
+$statefile //= $ENV{"HOME"} . "/.rpnc";
+my $rpnc = TheMachine->new();
+
+if (-f $statefile && (! $noload))
+{
+	my $state = LoadFile( $statefile );
+	my $version = $state->{_version} // "-1";
+	if ($version != SAVEFILE_VERSION)
+	{
+		die("state file version mismatch. I found >$version< but I need >" . SAVEFILE_VERSION . "<");
+	}
+
+	$rpnc->{ vars  } = $state->{ vars  };
+	$rpnc->{ flags } = $state->{ flags };
+	if (defined( $state->{ stack } ))
+	{
+		foreach my $hr (@{ $state->{ stack } })
+		{
+			$rpnc->push( Element->new( $hr->{type}, $hr->{value} ));
+		}
+	}
+}
+
 my $ops = $rpnc->operators();
 push(@$ops, 'q');
 my $pa = Parser->new( operators => $ops );
@@ -81,6 +100,24 @@ while ($loop)
 	}
 }
 $rpnc->shutdown();
+unless ($nosave)
+{
+	my $state = {
+		_version => SAVEFILE_VERSION,
+		stack => [],
+		vars  => $rpnc->{ vars  },
+		flags => $rpnc->{ flags },
+		revision => REVISION,
+		comment => "statefile of the RPNC rpn calculator",
+	};
+	foreach my $elem ( @{ $rpnc->{ stack } } )
+	{
+		push( @{ $state->{ stack } }, {type => $elem->{type}, value => $elem->{value}} );
+	}
+	DumpFile( $statefile, $state );
+}
+
+# --------------------------------------------------------
 exit(0);
 
 # ----------------------------------------------------------------------------
