@@ -13,14 +13,13 @@ use lib "$FindBin::Bin/..";
 use TheMachine;
 use Parser;
 
-my $p = Parser->new( operators => ["clear", "+", "-", "drop", "/", "*"] );
+my $p = Parser->new( operators => ["clear", "+", "-", "drop", "/", "*", "q"] );
 isa_ok( $p, "Parser" );
-
 
 my $r = int(rand(50000));
 is_deeply( $p->next_atom( $r ), [{type => $p->NUMBER, value => $r}, ""], "next_atom($r) makes NUMBER");
-is_deeply( $p->next_atom( "123 456" ), [{type => $p->NUMBER, value => 123}, " 456"], "next_atom($r) makes NUMBER and returns rest");
-is_deeply( $p->next_atom( "-567" ), [{type => $p->NUMBER, value => -567}, ""], "next_atom($r) negative NUMBER");
+is_deeply( $p->next_atom( "123 456" ), [{type => $p->NUMBER, value => 123}, " 456"], "next_atom('123 456') makes NUMBER and returns rest");
+is_deeply( $p->next_atom( "-567" ), [{type => $p->NUMBER, value => -567}, ""], "next_atom(-567) negative NUMBER");
 
 # TODO operators shoud come from TheMachine object
 foreach my $op ("+", "-", "*", "/", "clear", "drop")
