@@ -19,7 +19,7 @@ use constant REVISION => "20231213";
 
 use strict;
 use warnings;
-use Data::Dumper;
+use Data::Dumper; # the ultimate debugging tool
 use Getopt::Long;
 use YAML::Syck;
 use Test::More;
@@ -49,7 +49,7 @@ my $rpnc = TheMachine->new(
 );
 my $ops = $rpnc->operators();
 push(@$ops, 'q');
-my $pa = Parser->new( operators => $rpnc->operators() );
+my $pa = Parser->new( operators => $ops );
 my $loop = 434;
 while ($loop)
 {
