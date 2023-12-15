@@ -66,26 +66,8 @@ sub push
 }
 
 # --------------------------------------------------------
-sub save_state
-{
-	my ($self) = @_;
-	my $state = {
-		_version => $self->SAVEFILE_VERSION,
-		stack => $self->{ stack },
-		vars  => $self->{ vars  },
-		flags => $self->{ flags },
-		revision => main->REVISION,
-		comment => "statefile of the RPNC rpn calculator",
-	};
-	# print "Saving state " . Dumper( $state );
-	DumpFile( $self->{ statefile }, $state );
-}
-
-# --------------------------------------------------------
 sub shutdown
 {
-	my ($self) = @_;
-	$self->save_state() if $self->{ do_save_state };
 }
 
 # --------------------------------------------------------
