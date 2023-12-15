@@ -1,0 +1,72 @@
+package Element;
+
+# this is one of the things laying on the stack
+
+use strict;
+use warnings;
+use Carp;
+
+use constant END_OF_STREAM => "end-of-stream";
+use constant NUMBER => "number";
+use constant OPERATOR => "operator";
+use constant FUNCTION => "function";
+use constant STRING => "string";
+use constant SYMBOL => "symbol";
+use constant UNKNOWN => "unknown";
+
+sub new
+{
+	my ($class, $type, $value) = @_;
+	confess("type is not defined") unless defined $type;
+	confess("value is not defined") unless defined $value;
+	my $self = bless( {}, $class );
+	$self->{ type }  = $type;
+	$self->{ value } = $value;
+	return $self;
+}
+
+sub value
+{
+	my $self = shift;
+	return $self->{ value };
+}
+
+sub is_quit
+{
+	my $self = shift;
+	return 0 unless $self->is( Element->OPERATOR );
+       	return 1 if ($self->{ value } eq "quit") || ($self->{ value } eq "q");
+	return 0;
+}
+
+sub is
+{
+	my $self = shift;
+	my $type = shift;
+	return $self->{ type } eq $type ? 1 : 0;
+}
+
+sub is_number
+{
+	my $self = shift;
+	return $self->is( Element->NUMBER );
+}
+
+sub is_string
+{
+	my $self = shift;
+	return $self->is( Element->STRING );
+}
+
+sub is_operator
+{
+	my $self = shift;
+	return $self->is( Element->OPERATOR );
+}
+sub is_end
+{
+	my $self = shift;
+	return $self->is( Element->END_OF_STREAM );
+}
+
+1;

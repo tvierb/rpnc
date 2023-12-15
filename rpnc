@@ -69,8 +69,8 @@ while ($loop)
 		$atom  = $thingy->[0];
 		$input = $thingy->[1];
 		# print " DEBUGGING atom from stream: " . Dumper($atom);
-		last if $atom->{ type } eq Parser->END_OF_STREAM;
-		if (is_operator($atom, "q") || is_operator($atom, "quit"))
+		last if $atom->is_end();
+		if ($atom->is_quit())
 		{
 			$loop = 0;
 			last;
@@ -83,15 +83,6 @@ while ($loop)
 $rpnc->shutdown();
 exit(0);
 
-# ----------------------------------------------------------------------------
-sub is_operator
-{
-	my ($atom, $which) = @_;
-	return 0 unless ref $atom;
-	return 0 unless $atom->{ type } eq Parser->OPERATOR;
-	return 0 unless $atom->{ value } eq $which;
-	return 1;
-}
 # ----------------------------------------------------------------------------
 sub usage
 {
