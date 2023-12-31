@@ -38,6 +38,7 @@ GetOptions(
 	'nosave' => \my $nosave,         # default: false
 	'noload' => \my $noload,         # default: false
 	'statefile=s' => \my $statefile, # default: HOME/.rpnc
+	'debug'  => \my $is_debugging,
 	# 'quiet'  => \my $be_quiet,
 );
 usage() if $need_help;
@@ -89,7 +90,7 @@ while ($loop)
 	while(434)
 	{
 		my $atom = $pa->next_atom();
-		print " DEBUGGING atom from stream: " . Dumper($atom);
+		print " DEBUGGING atom from stream: " . Dumper($atom) if $is_debugging;
 		print "stream in pa: " . $pa->{stream} . "\n";
 		last unless defined $atom;
 		last if $atom->is_end();
