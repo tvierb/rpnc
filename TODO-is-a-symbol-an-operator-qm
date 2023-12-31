@@ -1,0 +1,25 @@
+sagen wir der user definiert eine kommandoabfolge:
+
+DEF FOO dup 1 + + END
+
+und er verwendet irgendwo >FOO, dann sollte ->operate( FOO ) das Programm ablaufen lassen.
+
+DEF FOO 4 END   sollte ok sein.
+
+
+Abkuerzung fuer Speicherung eines Werts in einer "Variablen":
+
+#4: 234
+#3:   0.342
+#2: 423
+#1: 999
+#0:  17
+----------------
+zinsen sto        ?? was ist wenn "zinsen" schon definiert ist? :-/
+
+sto zinsen        ?? sto muss ein nach sich folgendes Element vom Stack holen. Koennte gehen.
+
+
+Aber "zinsen" und "FOO" sind dann nicht Operatoren, sondern Symbole!?
+und wir brauchen eine input-Funktion in "TheMachine", fuer interaktive Programme.
+
