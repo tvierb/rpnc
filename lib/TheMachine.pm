@@ -4,6 +4,7 @@ use strict;
 use warnings;
 use Data::Dumper;
 use YAML::Syck;
+use Element;
 
 use constant SAVEFILE_VERSION => 2;
 sub new
@@ -17,10 +18,10 @@ sub new
 	$self->{ flags } = {}; # TODO config vars (output format)
 	$self->{ errors} = []; # collected errors, cleared when printed
 	$self->{ loop  } = 4e4;
-	$self->{ do_load_state } = ($params{'noload'} // 0) ? 0 : 1; # default: load_state
-	$self->{ do_save_state } = ($params{'nosave'} // 0) ? 0 : 1;
-	$self->{ statefile } = $params{statefile} // $ENV{"HOME"} . "/.rpnc";
-	$self->load_state() if $self->{ do_load_state };
+	# $self->{ do_load_state } = ($params{'noload'} // 0) ? 0 : 1; # default: load_state
+	# $self->{ do_save_state } = ($params{'nosave'} // 0) ? 0 : 1;
+	# $self->{ statefile } = $params{statefile} // $ENV{"HOME"} . "/.rpnc";
+	# $self->load_state() if $self->{ do_load_state };
 	$self->{ operators } = {};
 	map { $self->{ operators }->{$_} = 1 } ("sin", "cos", "inv", "swap", "swp", "drop", "dup", "clear", "clr", "pi", "+", "-", "*", "/");
 	return $self;
@@ -65,43 +66,24 @@ sub push
 }
 
 # --------------------------------------------------------
-sub save_state
-{
-	my ($self) = @_;
-	my $state = {
-		_version => $self->SAVEFILE_VERSION,
-		stack => $self->{ stack },
-		vars  => $self->{ vars  },
-		flags => $self->{ flags },
-		revision => main->REVISION,
-		comment => "statefile of the RPNC rpn calculator",
-	};
-	# print "Saving state " . Dumper( $state );
-	DumpFile( $self->{ statefile }, $state );
-}
-
-# --------------------------------------------------------
 sub shutdown
 {
-	my ($self) = @_;
-	$self->save_state() if $self->{ do_save_state };
 }
 
 # --------------------------------------------------------
 sub do
 {
 	my ($self, $atom) = @_;
-	my $type = $atom->{ type };
-	if ($type eq Parser->OPERATOR)
+	if ($atom->is_operator())
 	{
 		$self->operate( $atom );
 	}
-	elsif (($type eq Parser->NUMBER) || ($type eq Parser->STRING))
+	elsif ($atom->is_number() || $atom->is_string())
 	{
 		$self->push( $atom );
 	}
 	else {
-		$self->error("Unknown atom type '$type' with value '" . $atom->{ value } . "'. Skipped.");
+		$self->error("Unknown atom type: " . Dumper( $atom ));
 	}
 }
 
@@ -114,7 +96,7 @@ sub error
 
 
 # --------------------------------------------------------
-# add two number of type Parser->NUMBER
+# add two numbers of type Parser->NUMBER
 sub add
 {
 	my $self = shift;
@@ -125,7 +107,10 @@ sub add
 		my $b = shift( @{ $self->{ stack } } );
 		$b->{value} = -1 * $b->{value} if $invert;
 		my $a = shift( @{ $self->{ stack } } );
-		$self->push( {type => Parser->NUMBER, value => $a->{ value } + $b->{ value } } );
+		$self->push( Element->new( Element->NUMBER, $a->{ value } + $b->{ value } ) );
+	}
+	else {
+		$self->error("stack underflow");
 	}
 }
 
@@ -146,12 +131,15 @@ sub mul
 				$self->error("division by zero");
 			}
 			else {
-				$self->push( {type => Parser->NUMBER, value => $a->{ value } / $b->{ value } } );
+				$self->push( Element->new( Element->NUMBER, $a->{ value } / $b->{ value } ));
 			}
 		}
 		else {
-			$self->push( {type => Parser->NUMBER, value => $a->{ value } * $b->{ value } } );
+			$self->push( Element->new( Element->NUMBER, $a->{ value } * $b->{ value } ));
 		}
+	}
+	else {
+		$self->error("stack underflow");
 	}
 }
 
@@ -161,7 +149,7 @@ sub mul
 sub drop
 {
 	my $self = shift;
-	if (scalar @{ $self->{ stack }} > 0)
+	if ($self->count_stack() > 0)
 	{
 		shift( @{ $self->{ stack } } ); # consume
 	}
@@ -218,12 +206,12 @@ sub copy
 {
 	my $self = shift;
 	my $index = $self->pop();
-	if ($index->{ type } ne Parser->NUMBER)
+	if ($index->is_number())
 	{
 		$self->error("expected index to element on stack but popped a non-number");
 		return;
 	}
-	$index = $index->{ value };
+	$index = $index->value();
 	my $elem = get_at_index( $index );
 	if (! defined($elem))
 	{
@@ -247,7 +235,9 @@ sub has_two_numbers
 
 	foreach my $id ( (0, 1) )
 	{
-		unless ($self->idx_is_of_type( $id, Parser->NUMBER ))
+		my $thing = $self->{ stack }->[ $id ];
+		print "thing: " . Dumper($thing);
+		unless ($thing->is_number())
 		{
 			$self->error( "element #$id is not a number" );
 			return 0;
@@ -256,22 +246,14 @@ sub has_two_numbers
 	return 1;
 }
 
-sub idx_is_of_type
-{
-	my ($self, $index, $type) = @_;
-	my $thing = $self->get_at_index( $index );
-	return 0 unless ref $thing;
-	return 0 unless $thing->{type} eq $type;
-	return 1;
-}
-
 # is stack place #3 there and is it a number?
 # is it counting from 0? yes (why? because it is the index of the element)
 sub idx_is_number
 {
 	my ($self, $index) = @_;
-	return 0 if scalar@{ $self->{ stack }} >= ($index + 1);
-	return 0 if ($self->{ stack }->[ $index ]->{ type } ne Parser->NUMBER);
+	return 0 if $self->count_stack() >= ($index + 1);
+	my $elem = $self->{ stack }->[ $index ];
+	return 0 unless $elem->is_number();
 	return 1;
 }
 
@@ -279,9 +261,9 @@ sub idx_is_number
 sub operate
 {
 	my ($self, $atom) = @_;
-	my $type = $atom->{ type };
+	#my $type = $atom->{ type };
 	my $operation = $atom->{ value };
-	if ($type eq Parser->OPERATOR)
+	if ($atom->is_operator())
 	{
 		if ($operation eq "+")
 		{
@@ -315,10 +297,10 @@ sub operate
 		}
 		elsif ($operation eq "swap")
 		{
-			if (scalar @{ $self->{ stack }} >= 2)
+			if ($self->count_stack() >= 2)
 			{
-				my $b = shift( @{ $self->{ stack }} );
-				my $a = shift( @{ $self->{ stack }} );
+				my $b = $self->pop();
+				my $a = $self->pop();
 				$self->push( $b );
 				$self->push( $a );
 			}
@@ -333,7 +315,7 @@ sub operate
 	}
 	else
 	{
-		die("Unknown type '$type' in ->operate");
+		die("Unknown type >" . $atom->{ type } . "<");
 	}
 }
 
@@ -358,7 +340,7 @@ sub show
 	for (my $i = $number - 1; $i >= 0; $i--)
 	{
 		my $atom = $stack->[ $i ];
-		if ($atom->{type} eq Parser->NUMBER)
+		if ($atom->{type} eq Element->NUMBER)
 		{
 			printf("  %2s : %s\n", '#' . $i, $atom->{value}); # TODO add format
 		}
