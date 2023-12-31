@@ -56,7 +56,7 @@ sub next_atom
 	my $self = shift;
 	my $opreg = $self->ops_regexp();
 	my $stream = $self->{ stream }; # string
-	$stream =~ s/^ //g;
+	$stream =~ s/^\s+//g;
 	if (! length($stream))
 	{
 		$self->{ stream } = '';

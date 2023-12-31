@@ -31,6 +31,12 @@ sub value
 	return $self->{ value };
 }
 
+sub type
+{
+	my $self = shift;
+	return $self->{ type };
+}
+
 sub is_quit
 {
 	my $self = shift;

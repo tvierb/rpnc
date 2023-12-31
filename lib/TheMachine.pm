@@ -238,7 +238,6 @@ sub has_two_numbers
 	foreach my $id ( (0, 1) )
 	{
 		my $thing = $self->{ stack }->[ $id ];
-		print "thing: " . Dumper($thing);
 		unless ($thing->is_number())
 		{
 			$self->error( "element #$id is not a number" );

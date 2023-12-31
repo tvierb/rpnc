@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 
-# Tests for Parser.pm
+# low level tests for Parser.pm
 
 use strict;
 use warnings;
@@ -10,37 +10,35 @@ use Data::Dumper;
 use File::Temp qw(tempfile);
 use FindBin;
 use lib "$FindBin::Bin/../lib";
-use TheMachine;
+use Element;
 use Parser;
 
 my $p = Parser->new( operators => ["clear", "+", "-", "drop", "/", "*", "q"] );
 isa_ok( $p, "Parser" );
 
-my $r = int(rand(50000));
-is_deeply( $p->next_atom( $r ), [{type => $p->NUMBER, value => $r}, ""], "next_atom($r) makes NUMBER");
-is_deeply( $p->next_atom( "123 456" ), [{type => $p->NUMBER, value => 123}, " 456"], "next_atom('123 456') makes NUMBER and returns rest");
-is_deeply( $p->next_atom( "-567" ), [{type => $p->NUMBER, value => -567}, ""], "next_atom(-567) negative NUMBER");
+my $a = int(rand(10000));
+my $b = int(rand(10000));
+my $s = $a + $b;
 
-# TODO operators shoud come from TheMachine object
-foreach my $op ("+", "-", "*", "/", "clear", "drop")
-{
-	my $e = $p->next_atom( "$op hello" );
-	is_deeply( $e, [{type => $p->OPERATOR, value => $op}, " hello"], "operator $op");
-}
-is_deeply( $p->next_atom(""), [{type => $p->END_OF_STREAM, value => "moo"}, ""], "detect end of stream");
+my $stream = " $a  $b +";
+note("Test stream: $stream");
+$p->set_stream( $stream );
 
-is_deeply( $p->next_atom('"fische" "troeten"'), [{type => $p->STRING, value => "fische"}, ' "troeten"'], "find a string");
-is_deeply( $p->next_atom('notpi'), [{type => $p->SYMBOL, value => "notpi"}, ''], "find a symbol");
+my $e;
+$e = $p->next_atom();
+isa_ok( $e, "Element", "next_atom is an Element");
+is( $e->type(), Element->NUMBER, "first element from stream is NUMBER" );
+is( $e->value(), $a, "value of first element from stream is $a" );
 
-# test with a calculator:
-my $m = TheMachine->new(nosave => 1, noload => 1);
-my $ops = $m->operators();
-push( @$ops, 'q' ); # must be able to quit (is for rpnc program, not for cALCULATOR)
-$p = Parser->new( operators => $ops );
-is_deeply( $p->next_atom('q'), [{type => $p->OPERATOR, value => "q"}, ''], "find operator 'q'");
+$e = $p->next_atom();
+isa_ok( $e, "Element", "next_atom is an Element");
+is( $e->type(), Element->NUMBER, "second element from stream is NUMBER" );
+is( $e->value(), $b, "value of second element from stream is $b" );
 
-is_deeply( $p->as_number("-5.123"), {type => Parser->NUMBER, value => -5.123}, "make a number 1" );
-is_deeply( $p->as_number("5.123"),  {type => Parser->NUMBER, value =>  5.123}, "make a number 2" );
+$e = $p->next_atom();
+isa_ok( $e, "Element", "next_atom is an Element");
+is( $e->type(), Element->OPERATOR, "third element from stream is OPERATOR" );
+is( $e->value(), '+', "value is '+'" );
 
 done_testing;
 
