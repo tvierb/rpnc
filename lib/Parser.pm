@@ -95,7 +95,7 @@ sub next_atom
 
 	print "ERROR: Cannot get next element from stream '$stream'. Discaroding.\n";
 	$self->{ stream } = '';
-	return ElementFactory::end("moo");
+	return;
 }
 
 1;
