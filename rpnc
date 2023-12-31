@@ -91,6 +91,7 @@ while ($loop)
 		my $atom = $pa->next_atom();
 		print " DEBUGGING atom from stream: " . Dumper($atom);
 		print "stream in pa: " . $pa->{stream} . "\n";
+		last unless defined $atom;
 		last if $atom->is_end();
 		if ($atom->is_quit()) # first check things to handle here:
 		{
