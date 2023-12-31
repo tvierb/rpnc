@@ -3,7 +3,6 @@ package TheMachine;
 use strict;
 use warnings;
 use Data::Dumper;
-use YAML::Syck;
 use Element;
 
 use constant SAVEFILE_VERSION => 2;
