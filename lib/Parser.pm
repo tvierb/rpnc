@@ -18,7 +18,16 @@ sub new
 			$self->add_operator( $op );
 		}
 	}
+	$self->{ stream } = '';
 	return $self;
+}
+
+sub set_stream
+{
+
+	my ($self, $stream) = @_;
+	$stream =~ s/^ //g;
+	$self->{ stream } = $stream;
 }
 
 # add something to detect in the stream:
@@ -45,37 +54,48 @@ sub ops_regexp
 sub next_atom
 {
 	my $self = shift;
-	my $stream = shift;
-	$stream =~ s/^ //g;
 	my $opreg = $self->ops_regexp();
+	my $stream = $self->{ stream }; # string
+	$stream =~ s/^ //g;
 	if (! length($stream))
 	{
-		return [ ElementFactory::end("moo"), ""];
+		$self->{ stream } = '';
+		return ElementFactory::end("moo");
 	}
 	if ($stream =~ /^(-[0-9]+([\.][0-9]+)?)(.*)/)
 	{
-		return [ ElementFactory::number( $1 ), $3]; # negative number
+		$self->{ stream } = $3;
+		return ElementFactory::number( $1 ); # negative number
 	}
 	elsif ($stream =~ /^([0-9]+([\.][0-9]+)?)(.*)/)
 	{
-		return [ ElementFactory::number( $1 ), $3]; # positive number
+		$self->{ stream } = $3;
+		return ElementFactory::number( $1 ); # positive number
 	}
 	elsif (defined($opreg) && ($stream =~ /^($opreg)(.*)/))
 	{
-		return [ ElementFactory::operator( $1 ), $2]; # internal operation
+		$self->{ stream } = $2;
+		return ElementFactory::operator( $1 ); # internal operation
 	}
 	elsif ($stream =~ /^"([^"]*)"(.*)/)
 	{
-		return [ ElementFactory::string( $1 ), $2]; # string object
+		$self->{ stream } = $2;
+		return ElementFactory::string( $1 ); # string object
 	}
 	elsif ($stream =~ /^'([^']*)'(.*)/)
 	{
-		return [ ElementFactory::string( $1 ), $2]; # string object
+		$self->{ stream } = $2;
+		return ElementFactory::string( $1 ); # string object
 	}
 	elsif ($stream =~ /^([a-zA-Z][a-zA-Z0-9_]*)(.*)/)
 	{
-		return [ ElementFactory::symbol( $1 ), $2]; # string object
+		$self->{ stream } = $2;
+		return ElementFactory::symbol( $1 ); # string object
 	}
-	return [ ElementFactory::unknown( $stream ), ""];
+
+	print "ERROR: Cannot get next element from stream '$stream'. Discaroding.\n";
+	$self->{ stream } = '';
+	return ElementFactory::end("moo");
 }
+
 1;

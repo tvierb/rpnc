@@ -12,7 +12,7 @@ use constant OPERATOR => "operator";
 use constant FUNCTION => "function";
 use constant STRING => "string";
 use constant SYMBOL => "symbol";
-use constant UNKNOWN => "unknown";
+use constant ERROR   => "error";
 
 sub new
 {
@@ -39,11 +39,27 @@ sub is_quit
 	return 0;
 }
 
+sub is_help
+{
+	my $self = shift;
+	if ($self->is( Element->OPERATOR ))
+	{
+		return 1 if $self->value() eq 'help';
+		return 1 if $self->value() eq '?';
+	}
+	return 0;
+}
 sub is
 {
 	my $self = shift;
 	my $type = shift;
 	return $self->{ type } eq $type ? 1 : 0;
+}
+
+sub is_error
+{
+	my $self = shift;
+	return $self->is( Element->ERROR );
 }
 
 sub is_number

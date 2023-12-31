@@ -76,10 +76,12 @@ sub do
 	my ($self, $atom) = @_;
 	if ($atom->is_operator())
 	{
+		print "me is operator\n";
 		$self->operate( $atom );
 	}
 	elsif ($atom->is_number() || $atom->is_string())
 	{
+		print "me is number\n";
 		$self->push( $atom );
 	}
 	else {

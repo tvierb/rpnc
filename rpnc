@@ -68,6 +68,8 @@ if (-f $statefile && (! $noload))
 
 my $ops = $rpnc->operators();
 push(@$ops, 'q');
+push(@$ops, 'help');
+push(@$ops, '?');
 my $pa = Parser->new( operators => $ops );
 my $loop = 434;
 while ($loop)
@@ -80,21 +82,29 @@ while ($loop)
 		last;
 	}
 	chomp($input);
+	$pa->set_stream( $input );
 
 	my $atom;
 	while(434)
 	{
-		my $thingy = $pa->next_atom( $input );
-		$atom  = $thingy->[0];
-		$input = $thingy->[1];
-		# print " DEBUGGING atom from stream: " . Dumper($atom);
+		my $atom = $pa->next_atom();
+		print " DEBUGGING atom from stream: " . Dumper($atom);
+		print "stream in pa: " . $pa->{stream} . "\n";
 		last if $atom->is_end();
-		if ($atom->is_quit())
+		if ($atom->is_quit()) # first check things to handle here:
 		{
 			$loop = 0;
 			last;
 		}
-		else {
+		elsif ($atom->is_error())
+		{
+			$rpnc->error( $atom->value() );
+		}
+		elsif ($atom->is_help())
+		{
+		      print "TODO: There will be some help in the future.\n";
+		}
+		else { # handle everything else in the machine:
 			$rpnc->do( $atom ); # handle NUMBER OPERATOR
 		}
 	}
