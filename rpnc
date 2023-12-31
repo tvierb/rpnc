@@ -125,7 +125,7 @@ unless ($nosave)
 	};
 	foreach my $elem ( @{ $rpnc->{ stack } } )
 	{
-		push( @{ $state->{ stack } }, {type => $elem->{type}, value => $elem->{value}} );
+		unshift( @{ $state->{ stack } }, {type => $elem->{type}, value => $elem->{value}} );
 	}
 	DumpFile( $statefile, $state );
 }
