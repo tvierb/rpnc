@@ -208,13 +208,13 @@ sub copy
 {
 	my $self = shift;
 	my $index = $self->pop();
-	if ($index->is_number())
+	if (! $index->is_number())
 	{
 		$self->error("expected index to element on stack but popped a non-number");
 		return;
 	}
 	$index = $index->value();
-	my $elem = get_at_index( $index );
+	my $elem = $self->get_at_index( $index );
 	if (! defined($elem))
 	{
 		$self->error("no element on stack at index $index");
@@ -248,16 +248,6 @@ sub has_two_numbers
 	return 1;
 }
 
-# is stack place #3 there and is it a number?
-# is it counting from 0? yes (why? because it is the index of the element)
-sub idx_is_number
-{
-	my ($self, $index) = @_;
-	return 0 if $self->count_stack() >= ($index + 1);
-	my $elem = $self->{ stack }->[ $index ];
-	return 0 unless $elem->is_number();
-	return 1;
-}
 
 # --------------------------------------------------------
 sub operate

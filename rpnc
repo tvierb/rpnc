@@ -70,6 +70,7 @@ my $ops = $rpnc->operators();
 push(@$ops, 'q');
 push(@$ops, 'help');
 push(@$ops, '?');
+push(@$ops, 'copy');
 my $pa = Parser->new( operators => $ops );
 my $loop = 434;
 while ($loop)
