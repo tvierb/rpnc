@@ -4,7 +4,8 @@
 #  Autor: t3o 2023++
 
 # TODO the things on the stack should have their own classes (symbol, number). Not "element".
-# TODO save/load list of commands in $command_queue
+# TODO save/load vars
+# TODO save/load list of commands in $command_queue -- oder wie machen, dass ein unterprogramm ausgefuehrt wird? Brauchen konkretes Beispiel!!
 
 use strict;
 use warnings;

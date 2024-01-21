@@ -24,4 +24,9 @@ sub value
 	return $self->{ value };
 }
 
+sub clone
+{
+	my $self = shift;
+	return String->new( $self->value() );
+}
 1;

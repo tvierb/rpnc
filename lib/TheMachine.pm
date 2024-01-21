@@ -16,6 +16,7 @@ sub new
 
 	$self->{ stack } = [];
 	$self->{ defs  } = {};
+	$self->{ vars  } = {};
 	$self->{ flags } = {}; # TODO config vars (output format)
 	$self->{ errors} = []; # collected errors, cleared when printed
 	$self->{ loop  } = 4e4;
@@ -89,6 +90,32 @@ sub mul
 	else {
 		$self->error("stack underflow");
 	}
+}
+
+# --------------------------------------------------------
+# Store a number or string (from stack) into a named field
+#
+# value
+# "string"
+# (sto)
+sub store
+{
+	my $self = shift;
+	if ($self->count_stack() < 2)
+	{
+		$self->error("stack underflow");
+		return;
+	}
+	my $label = $self->pop();
+	if (ref $label ne "String")
+	{
+		$self->push( $label );
+		$self->error("there must be the name (string)");
+		return;
+	}
+	my $thing = $self->pop();
+	$self->{vars}->{$label->value()} = $thing->clone();
+	$self->push($thing);
 }
 
 # --------------------------------------------------------
@@ -260,6 +287,11 @@ sub do
 		$self->{ stack } = [];
 		return;
 	}
+	elsif ($what eq "sto")
+	{
+		$self->store();
+		return;
+	}
 
 	## 2. or is it defined in our defs?
 	#elsif (defined( $self->{ defs }->{ $what } ))
@@ -281,11 +313,11 @@ sub show
 {
 	my $self = shift;
 
-	my $defs = $self->{ defs };
-	if (scalar keys %{ $defs })
+	my $vars = $self->{ vars };
+	if (scalar keys %{ $vars })
 	{
 		my $s = "";
-		map { $s .= "$_=" . $defs->{ $_ } . " " } sort keys %{ $defs };
+		map { $s .= "$_=" . $vars->{ $_ }->value() . " " } sort keys %{ $vars };
 		print "VARS: " . substr($s, 0, -1) . "\n";
 	}
 	

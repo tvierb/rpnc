@@ -24,4 +24,10 @@ sub value
 	return $self->{ value };
 }
 
+sub clone
+{
+	my $self = shift;
+	return Number->new( $self->value() );
+}
+
 1;
