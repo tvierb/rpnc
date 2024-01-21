@@ -3,7 +3,9 @@ package TheMachine;
 use strict;
 use warnings;
 use Data::Dumper;
-use Element;
+use Number;
+use String;
+use Operator;
 
 use constant SAVEFILE_VERSION => 2;
 sub new
@@ -53,7 +55,7 @@ sub add
 		my $b = shift( @{ $self->{ stack } } );
 		$b->{value} = -1 * $b->{value} if $invert;
 		my $a = shift( @{ $self->{ stack } } );
-		$self->push( Element->new( Element->NUMBER, $a->{ value } + $b->{ value } ) );
+		$self->push( Number->new( $a->{ value } + $b->{ value } ) );
 	}
 	else {
 		$self->error("stack underflow");
@@ -77,11 +79,11 @@ sub mul
 				$self->error("division by zero");
 			}
 			else {
-				$self->push( Element->new( Element->NUMBER, $a->{ value } / $b->{ value } ));
+				$self->push( Number->new( $a->{ value } / $b->{ value } ));
 			}
 		}
 		else {
-			$self->push( Element->new( Element->NUMBER, $a->{ value } * $b->{ value } ));
+			$self->push( Number->new( $a->{ value } * $b->{ value } ));
 		}
 	}
 	else {
@@ -152,7 +154,7 @@ sub copy
 {
 	my $self = shift;
 	my $index = $self->pop();
-	if (! $index->is_number())
+	if (ref $index ne "Number")
 	{
 		$self->error("expected index to element on stack but popped a non-number");
 		return;
@@ -164,8 +166,17 @@ sub copy
 		$self->error("no element on stack at index $index");
 		return;
 	}
-	my %hash_copy = %{ $elem };
-	$self->push( \%hash_copy );
+	if (ref $elem eq "Number")
+	{
+		$self->push( Number->new( $elem->value() )); # clone
+	}
+	elsif (ref $elem eq "String")
+	{
+		$self->push( String->new( $elem->value() )); # clone
+	}
+	else {
+		$self->error("Cannot copy that thing.");
+	}
 }
 
 
@@ -179,96 +190,90 @@ sub has_two_numbers
 		return 0;
 	}
 
-	foreach my $id ( (0, 1) )
-	{
-		my $thing = $self->{ stack }->[ $id ];
-		unless ($thing->is_number())
-		{
-			$self->error( "element #$id is not a number" );
-			return 0;
-		}
-	}
-	return 1;
+	my $has = 0;
+	$has++ if ref $self->{stack}->[ 0 ] eq "Number";
+	$has++ if ref $self->{stack}->[ 1 ] eq "Number";
+	return $has == 2 ? 1 : 0;
 }
 
 
 # --------------------------------------------------------
-sub operate
+sub do
 {
-	my ($self, $atom) = @_;
-	#my $type = $atom->{ type };
-	if ($atom->is_number() || $atom->is_string())
+	my ($self, $op) = @_;
+	die("Cannot handle " . Dumper($op)) if ref $op ne "Operator";
+	# Symbols are internal symbols/operators or values or programs defined by the user.
+	my $what = $op->{ value };
+	if ($what eq "+")
 	{
-		$self->push( $atom );
+		$self->add();
 		return;
 	}
-	elsif ($atom->is_symbol())
+	elsif ($what eq "-")
 	{
-		# Symbols are internal symbols/operators or values or programs defined by the user.
-		# 1. check internal symbols like + - copy clear dup def sto end:
-		my $symbol = $atom->{ value };
-		if ($symbol eq "+")
-		{
-			$self->add();
-			return;
-		}
-		elsif ($symbol eq "-")
-		{
-			$self->add( invert => 1 );
-			return;
-		}
-		elsif ($symbol eq "*")
-		{
-			$self->mul();
-			return;
-		}
-		elsif ($symbol eq "/")
-		{
-			$self->mul( invert => 1 );
-			return;
-		}
-		elsif (($symbol eq "drop") || ($symbol eq "d"))
-		{
-			$self->drop();
-			return;
-		}
-		elsif (($symbol eq "copy") || ($symbol eq "cp"))
-		{
-			$self->copy();
-			return;
-		}
-		elsif ($symbol eq "swap")
-		{
-			if ($self->count_stack() >= 2)
-			{
-				my $b = $self->pop();
-				my $a = $self->pop();
-				$self->push( $b );
-				$self->push( $a );
-				return;
-			}
-		}
-		elsif (($symbol eq "clear") || ($symbol eq "clr"))
-		{
-			$self->{ stack } = [];
-			return;
-		}
-
-		# 2. or is it defined in our defs?
-		elsif (defined( $self->{ defs }->{ $symbol } ))
-		{
-			# a list of Element objects
-			# copy them on the stack:
-			my $subroutine = $self->{ defs }->{ $symbol };
-			foreach my $e (@$subroutine)
-			{
-				$self->push( $e );
-			}
-			return;
-		}
-		die("unknown symbol >$symbol<"); # die?
+		$self->add( invert => 1 );
+		return;
 	}
-	die("Unknown type >" . $atom->{ type } . "<");
+	elsif ($what eq "*")
+	{
+		$self->mul();
+		return;
+	}
+	elsif ($what eq "/")
+	{
+		$self->mul( invert => 1 );
+		return;
+	}
+	elsif ($what eq "dup")
+	{
+		if ($self->count_stack() >= 1)
+		{
+			my $a = $self->pop();
+			$self->push( $a );
+			$self->push( $a );
+		}
+		return;
+	}
+	elsif (($what eq "drop") || ($what eq "d"))
+	{
+		$self->drop();
+		return;
+	}
+	elsif (($what eq "copy") || ($what eq "cp"))
+	{
+		$self->copy();
+		return;
+	}
+	elsif ($what eq "swap")
+	{
+		if ($self->count_stack() >= 2)
+		{
+			my $b = $self->pop();
+			my $a = $self->pop();
+			$self->push( $b );
+			$self->push( $a );
+			return;
+		}
+	}
+	elsif (($what eq "clear") || ($what eq "clr"))
+	{
+		$self->{ stack } = [];
+		return;
+	}
+
+	## 2. or is it defined in our defs?
+	#elsif (defined( $self->{ defs }->{ $what } ))
+	#{
+	#	# a list of Element objects
+	#	# copy them on the stack:
+	#	my $subroutine = $self->{ defs }->{ $what };
+	#	foreach my $e (@$subroutine)
+	#	{
+	#		$self->push( $e );
+	#	}
+	#	return;
+	#}
+	print "WARNING unknown symbol >$what<. Skipped.\n"; # die?
 }
 
 # ----------------------------------------------------------------------------
@@ -292,9 +297,13 @@ sub show
 	for (my $i = $number - 1; $i >= 0; $i--)
 	{
 		my $atom = $stack->[ $i ];
-		if ($atom->{type} eq Element->NUMBER)
+		if (ref $atom eq "Number")
 		{
 			printf("  %2s : %s\n", '#' . $i, $atom->{value}); # TODO add format
+		}
+		elsif (ref $atom eq "String")
+		{
+			printf("  %2s : %s\n", '#' . $i, ">>" . $atom->{value} . "<<"); # TODO add format
 		}
 		else {
 			printf("  %2s : %s\n", '#' . $i, "unknown entity: " . Dumper($atom));

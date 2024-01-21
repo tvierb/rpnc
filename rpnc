@@ -3,6 +3,9 @@
 #   Sinn: Commandline-Pocketcalculator
 #  Autor: t3o 2023++
 
+# TODO the things on the stack should have their own classes (symbol, number). Not "element".
+# TODO save/load list of commands in $command_queue
+
 use strict;
 use warnings;
 use Data::Dumper; # the ultimate debugging tool
@@ -30,7 +33,7 @@ usage() if $need_help;
 
 print "Welcome to the wonderful world of R-P-N-C\n";
 $statefile //= $ENV{"HOME"} . "/.rpnc";
-my $rpnc = TheMachine->new();
+my $machine = TheMachine->new();
 
 if (-f $statefile && (! $noload))
 {
@@ -41,13 +44,20 @@ if (-f $statefile && (! $noload))
 		die("state file version mismatch. I found >$version< but I need >" . SAVEFILE_VERSION . "<");
 	}
 
-	$rpnc->{ defs  } = $state->{ defs  };
-	$rpnc->{ flags } = $state->{ flags };
+	$machine->{ defs  } = $state->{ defs  };
+	$machine->{ flags } = $state->{ flags };
 	if (defined( $state->{ stack } ))
 	{
 		foreach my $hr (@{ $state->{ stack } })
 		{
-			$rpnc->push( Element->new( $hr->{type}, $hr->{value} ));
+			if ($hr->{type} eq "Number")
+			{
+				$machine->push( Number->new( $hr->{value} ));
+			}
+			if ($hr->{type} eq "String")
+			{
+				$machine->push( String->new( $hr->{value} ));
+			}
 		}
 	}
 }
@@ -56,7 +66,7 @@ my $pa = Parser->new();
 my $loop = 434;
 while ($loop)
 {
-	$rpnc->show();
+	$machine->show();
 	# Move the input function into TheMachine when it is programmable
 	my $input = <STDIN>;
 	unless (defined $input) # Ctrl-d
@@ -65,48 +75,49 @@ while ($loop)
 		last;
 	}
 	chomp($input);
+	$input = "dup" unless length($input);
 	$pa->set_stream( $input );
 
-	my $atom;
-	while(434)
+	while(4e4)
 	{
 		my $atom = $pa->next_atom();
 		print " DEBUGGING atom from stream: " . Dumper($atom) if $is_debugging;
-		print "stream in pa: " . $pa->{stream} . "\n";
+		# print "stream in pa: " . $pa->{stream} . "\n";
 		last unless defined $atom;
-		last if $atom->is_end();
-		if ($atom->is_quit()) # first check things to handle here:
+		last if ref $atom eq "EndOfStream";
+		if (ref $atom eq "Operator")
 		{
-			$loop = 0;
-			last;
+			if (($atom->value() eq "q") || ($atom->value() eq "quit"))
+			{
+				$loop = 0;
+				last;
+			}
+			$machine->do( $atom ); # do something
 		}
-		elsif ($atom->is_error())
+		elsif (ref $atom eq "Number")
 		{
-			$rpnc->error( $atom->value() );
+			$machine->push( $atom );
 		}
-		elsif ($atom->is_help())
+		elsif (ref $atom eq "String")
 		{
-		      print "TODO: There will be some help in the future.\n";
-		}
-		else { # handle everything else in the machine:
-			$rpnc->operate( $atom ); # handle NUMBER OPERATOR
+			$machine->push( $atom );
 		}
 	}
 }
-$rpnc->shutdown();
+$machine->shutdown();
 unless ($nosave)
 {
 	my $state = {
 		_version => SAVEFILE_VERSION,
 		stack => [],
-		defs  => $rpnc->{ defs  },
-		flags => $rpnc->{ flags },
+		defs  => $machine->{ defs  },
+		flags => $machine->{ flags },
 		revision => REVISION,
 		comment => "statefile of the RPNC rpn calculator",
 	};
-	foreach my $elem ( @{ $rpnc->{ stack } } )
+	foreach my $elem ( @{ $machine->{ stack } } )
 	{
-		unshift( @{ $state->{ stack } }, {type => $elem->{type}, value => $elem->{value}} );
+		unshift( @{ $state->{ stack } }, {type => ref $elem, value => $elem->{value}} );
 	}
 	DumpFile( $statefile, $state );
 }
