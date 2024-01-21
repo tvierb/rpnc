@@ -20,12 +20,6 @@ ok( ! ref $m->get_at_index(0), "nothing is on the stack" );
 is( $m->count_stack(), 0, "no things are on the stack" );
 
 
-$m->{ operators } = {"sin" => 1};
-my $ops = $m->operators();
-is(ref $ops, "ARRAY", "got arrayref of operators");
-is( @{$ops}[0], "sin", "the operator defined was found (1)");
-ok( defined( $m->{ operators }->{ sin }), "the operator defined was found");
-
 $m = TheMachine->new( noload => 1, nosave => 1 );
 note('pushing a number');
 $m->push( Element->new( Element->NUMBER, 13 ) );

@@ -39,7 +39,7 @@ is( $e->value(), $b, "value of second element from stream is $b" );
 
 $e = $p->next_atom();
 isa_ok( $e, "Element", "next_atom is an Element");
-is( $e->type(), Element->OPERATOR, "third element from stream is OPERATOR" );
+is( $e->type(), Element->SYMBOL, "next element from stream is SYMBOL" );
 is( $e->value(), '+', "value is '+'" );
 
 $e = $p->next_atom();
@@ -56,6 +56,15 @@ $e = $p->next_atom();
 isa_ok( $e, "Element", "next_atom called again is also end-of-stream Element");
 is( $e->type(), Element->END_OF_STREAM, "also end-of-stream" );
 ok( $e->is_end(), "->is_end() is TRUE" );
+
+$p->set_stream("+-/*");
+foreach my $op ( ("+", "-", "/", "*") )
+{
+   $e = $p->next_atom();
+   isa_ok( $e, "Element", "next_atom is an Element");
+   is( $e->type(), Element->SYMBOL, "next element from stream is SYMBOL" );
+   is( $e->value(), $op, "value is '$op'" );
+}
 
 done_testing;
 

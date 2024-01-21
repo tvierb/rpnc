@@ -13,47 +13,11 @@ sub new
 	my $self = bless({}, $classname);
 
 	$self->{ stack } = [];
-	$self->{ vars  } = {};
+	$self->{ defs  } = {};
 	$self->{ flags } = {}; # TODO config vars (output format)
 	$self->{ errors} = []; # collected errors, cleared when printed
 	$self->{ loop  } = 4e4;
-	# $self->{ do_load_state } = ($params{'noload'} // 0) ? 0 : 1; # default: load_state
-	# $self->{ do_save_state } = ($params{'nosave'} // 0) ? 0 : 1;
-	# $self->{ statefile } = $params{statefile} // $ENV{"HOME"} . "/.rpnc";
-	# $self->load_state() if $self->{ do_load_state };
-	$self->{ operators } = {};
-	map { $self->{ operators }->{$_} = 1 } ("sin", "cos", "inv", "swap", "swp", "drop", "dup", "clear", "clr", "pi", "+", "-", "*", "/");
 	return $self;
-}
-
-# --------------------------------------------------------
-# get list of reserved operators / function names
-sub operators
-{
-	my $self = shift;
-	my @result = ();
-	map { CORE::push( @result, $_ ) } keys %{ $self->{ operators } };
-	return \@result;
-}
-
-# --------------------------------------------------------
-# load the machine state of last session
-# TODO let the main package load the state and put it into the machine with setters
-sub load_state
-{
-	my ($self) = @_;
-	return unless -f $self->{ statefile };
-	# print "Loading state from file '" . $self->{ statefile } . "'\n";
-	my $state = LoadFile( $self->{ statefile } );
-	my $version = $state->{_version} // "-1";
-	if ($version != $self->SAVEFILE_VERSION)
-	{
-		die("state file version mismatch. I found >$version< but I need >" . $self->SAVEFILE_VERSION . "<");
-	}
-
-	$self->{ stack } = $state->{ stack };
-	$self->{ vars  } = $state->{ vars  };
-	$self->{ flags } = $state->{ flags };
 }
 
 # --------------------------------------------------------
@@ -67,25 +31,6 @@ sub push
 # --------------------------------------------------------
 sub shutdown
 {
-}
-
-# --------------------------------------------------------
-sub do
-{
-	my ($self, $atom) = @_;
-	if ($atom->is_operator())
-	{
-		print "me is operator\n";
-		$self->operate( $atom );
-	}
-	elsif ($atom->is_number() || $atom->is_string())
-	{
-		print "me is number\n";
-		$self->push( $atom );
-	}
-	else {
-		$self->error("Unknown atom type: " . Dumper( $atom ));
-	}
 }
 
 # --------------------------------------------------------
@@ -252,40 +197,47 @@ sub operate
 {
 	my ($self, $atom) = @_;
 	#my $type = $atom->{ type };
-	my $operation = $atom->{ value };
-	if ($atom->is_operator())
+	if ($atom->is_number() || $atom->is_string())
 	{
-		if ($operation eq "+")
+		$self->push( $atom );
+		return;
+	}
+	elsif ($atom->is_symbol())
+	{
+		# Symbols are internal symbols/operators or values or programs defined by the user.
+		# 1. check internal symbols like + - copy clear dup def sto end:
+		my $symbol = $atom->{ value };
+		if ($symbol eq "+")
 		{
 			$self->add();
 			return;
 		}
-		elsif ($operation eq "-")
+		elsif ($symbol eq "-")
 		{
 			$self->add( invert => 1 );
 			return;
 		}
-		elsif ($operation eq "*")
+		elsif ($symbol eq "*")
 		{
 			$self->mul();
 			return;
 		}
-		elsif ($operation eq "/")
+		elsif ($symbol eq "/")
 		{
 			$self->mul( invert => 1 );
 			return;
 		}
-		elsif (($operation eq "drop") || ($operation eq "d"))
+		elsif (($symbol eq "drop") || ($symbol eq "d"))
 		{
 			$self->drop();
 			return;
 		}
-		elsif (($operation eq "copy") || ($operation eq "cp"))
+		elsif (($symbol eq "copy") || ($symbol eq "cp"))
 		{
 			$self->copy();
 			return;
 		}
-		elsif ($operation eq "swap")
+		elsif ($symbol eq "swap")
 		{
 			if ($self->count_stack() >= 2)
 			{
@@ -293,20 +245,30 @@ sub operate
 				my $a = $self->pop();
 				$self->push( $b );
 				$self->push( $a );
+				return;
 			}
 		}
-		elsif (($operation eq "clear") || ($operation eq "clr"))
+		elsif (($symbol eq "clear") || ($symbol eq "clr"))
 		{
 			$self->{ stack } = [];
+			return;
 		}
-		else {
-			die("unknown operation >$operation<");
+
+		# 2. or is it defined in our defs?
+		elsif (defined( $self->{ defs }->{ $symbol } ))
+		{
+			# a list of Element objects
+			# copy them on the stack:
+			my $subroutine = $self->{ defs }->{ $symbol };
+			foreach my $e (@$subroutine)
+			{
+				$self->push( $e );
+			}
+			return;
 		}
+		die("unknown symbol >$symbol<"); # die?
 	}
-	else
-	{
-		die("Unknown type >" . $atom->{ type } . "<");
-	}
+	die("Unknown type >" . $atom->{ type } . "<");
 }
 
 # ----------------------------------------------------------------------------
@@ -314,11 +276,11 @@ sub show
 {
 	my $self = shift;
 
-	my $vars = $self->{ vars };
-	if (scalar keys %{ $vars })
+	my $defs = $self->{ defs };
+	if (scalar keys %{ $defs })
 	{
 		my $s = "";
-		map { $s .= "$_=" . $vars->{ $_ } . " " } sort keys %{ $vars };
+		map { $s .= "$_=" . $defs->{ $_ } . " " } sort keys %{ $defs };
 		print "VARS: " . substr($s, 0, -1) . "\n";
 	}
 	

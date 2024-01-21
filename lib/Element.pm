@@ -8,7 +8,6 @@ use Carp;
 
 use constant END_OF_STREAM => "end-of-stream";
 use constant NUMBER => "number";
-use constant OPERATOR => "operator";
 use constant FUNCTION => "function";
 use constant STRING => "string";
 use constant SYMBOL => "symbol";
@@ -40,7 +39,7 @@ sub type
 sub is_quit
 {
 	my $self = shift;
-	return 0 unless $self->is( Element->OPERATOR );
+	return 0 unless $self->is( Element->SYMBOL );
        	return 1 if ($self->{ value } eq "quit") || ($self->{ value } eq "q");
 	return 0;
 }
@@ -48,13 +47,19 @@ sub is_quit
 sub is_help
 {
 	my $self = shift;
-	if ($self->is( Element->OPERATOR ))
-	{
-		return 1 if $self->value() eq 'help';
-		return 1 if $self->value() eq '?';
-	}
+	return 0 unless $self->is( Element->SYMBOL );
+	return 1 if $self->value() eq 'help';
+	return 1 if $self->value() eq '?';
 	return 0;
 }
+
+sub is_symbol
+{
+	my $self = shift;
+	return 1 if $self->is( Element->SYMBOL );
+	return 0;
+}
+
 sub is
 {
 	my $self = shift;
@@ -80,11 +85,6 @@ sub is_string
 	return $self->is( Element->STRING );
 }
 
-sub is_operator
-{
-	my $self = shift;
-	return $self->is( Element->OPERATOR );
-}
 sub is_end
 {
 	my $self = shift;
