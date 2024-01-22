@@ -3,7 +3,9 @@ package TheMachine;
 use strict;
 use warnings;
 use Data::Dumper;
-use Element;
+use Number;
+use String;
+use Operator;
 
 use constant SAVEFILE_VERSION => 2;
 sub new
@@ -13,47 +15,12 @@ sub new
 	my $self = bless({}, $classname);
 
 	$self->{ stack } = [];
+	$self->{ defs  } = {};
 	$self->{ vars  } = {};
 	$self->{ flags } = {}; # TODO config vars (output format)
 	$self->{ errors} = []; # collected errors, cleared when printed
 	$self->{ loop  } = 4e4;
-	# $self->{ do_load_state } = ($params{'noload'} // 0) ? 0 : 1; # default: load_state
-	# $self->{ do_save_state } = ($params{'nosave'} // 0) ? 0 : 1;
-	# $self->{ statefile } = $params{statefile} // $ENV{"HOME"} . "/.rpnc";
-	# $self->load_state() if $self->{ do_load_state };
-	$self->{ operators } = {};
-	map { $self->{ operators }->{$_} = 1 } ("sin", "cos", "inv", "swap", "swp", "drop", "dup", "clear", "clr", "pi", "+", "-", "*", "/");
 	return $self;
-}
-
-# --------------------------------------------------------
-# get list of reserved operators / function names
-sub operators
-{
-	my $self = shift;
-	my @result = ();
-	map { CORE::push( @result, $_ ) } keys %{ $self->{ operators } };
-	return \@result;
-}
-
-# --------------------------------------------------------
-# load the machine state of last session
-# TODO let the main package load the state and put it into the machine with setters
-sub load_state
-{
-	my ($self) = @_;
-	return unless -f $self->{ statefile };
-	# print "Loading state from file '" . $self->{ statefile } . "'\n";
-	my $state = LoadFile( $self->{ statefile } );
-	my $version = $state->{_version} // "-1";
-	if ($version != $self->SAVEFILE_VERSION)
-	{
-		die("state file version mismatch. I found >$version< but I need >" . $self->SAVEFILE_VERSION . "<");
-	}
-
-	$self->{ stack } = $state->{ stack };
-	$self->{ vars  } = $state->{ vars  };
-	$self->{ flags } = $state->{ flags };
 }
 
 # --------------------------------------------------------
@@ -67,25 +34,6 @@ sub push
 # --------------------------------------------------------
 sub shutdown
 {
-}
-
-# --------------------------------------------------------
-sub do
-{
-	my ($self, $atom) = @_;
-	if ($atom->is_operator())
-	{
-		print "me is operator\n";
-		$self->operate( $atom );
-	}
-	elsif ($atom->is_number() || $atom->is_string())
-	{
-		print "me is number\n";
-		$self->push( $atom );
-	}
-	else {
-		$self->error("Unknown atom type: " . Dumper( $atom ));
-	}
 }
 
 # --------------------------------------------------------
@@ -108,7 +56,7 @@ sub add
 		my $b = shift( @{ $self->{ stack } } );
 		$b->{value} = -1 * $b->{value} if $invert;
 		my $a = shift( @{ $self->{ stack } } );
-		$self->push( Element->new( Element->NUMBER, $a->{ value } + $b->{ value } ) );
+		$self->push( Number->new( $a->{ value } + $b->{ value } ) );
 	}
 	else {
 		$self->error("stack underflow");
@@ -132,16 +80,42 @@ sub mul
 				$self->error("division by zero");
 			}
 			else {
-				$self->push( Element->new( Element->NUMBER, $a->{ value } / $b->{ value } ));
+				$self->push( Number->new( $a->{ value } / $b->{ value } ));
 			}
 		}
 		else {
-			$self->push( Element->new( Element->NUMBER, $a->{ value } * $b->{ value } ));
+			$self->push( Number->new( $a->{ value } * $b->{ value } ));
 		}
 	}
 	else {
 		$self->error("stack underflow");
 	}
+}
+
+# --------------------------------------------------------
+# Store a number or string (from stack) into a named field
+#
+# value
+# "string"
+# (sto)
+sub store
+{
+	my $self = shift;
+	if ($self->count_stack() < 2)
+	{
+		$self->error("stack underflow");
+		return;
+	}
+	my $label = $self->pop();
+	if (ref $label ne "String")
+	{
+		$self->push( $label );
+		$self->error("there must be the name (string)");
+		return;
+	}
+	my $thing = $self->pop();
+	$self->{vars}->{$label->value()} = $thing->clone();
+	$self->push($thing);
 }
 
 # --------------------------------------------------------
@@ -207,7 +181,7 @@ sub copy
 {
 	my $self = shift;
 	my $index = $self->pop();
-	if (! $index->is_number())
+	if (ref $index ne "Number")
 	{
 		$self->error("expected index to element on stack but popped a non-number");
 		return;
@@ -219,8 +193,17 @@ sub copy
 		$self->error("no element on stack at index $index");
 		return;
 	}
-	my %hash_copy = %{ $elem };
-	$self->push( \%hash_copy );
+	if (ref $elem eq "Number")
+	{
+		$self->push( Number->new( $elem->value() )); # clone
+	}
+	elsif (ref $elem eq "String")
+	{
+		$self->push( String->new( $elem->value() )); # clone
+	}
+	else {
+		$self->error("Cannot copy that thing.");
+	}
 }
 
 
@@ -234,79 +217,95 @@ sub has_two_numbers
 		return 0;
 	}
 
-	foreach my $id ( (0, 1) )
-	{
-		my $thing = $self->{ stack }->[ $id ];
-		unless ($thing->is_number())
-		{
-			$self->error( "element #$id is not a number" );
-			return 0;
-		}
-	}
-	return 1;
+	my $has = 0;
+	$has++ if ref $self->{stack}->[ 0 ] eq "Number";
+	$has++ if ref $self->{stack}->[ 1 ] eq "Number";
+	return $has == 2 ? 1 : 0;
 }
 
 
 # --------------------------------------------------------
-sub operate
+sub do
 {
-	my ($self, $atom) = @_;
-	#my $type = $atom->{ type };
-	my $operation = $atom->{ value };
-	if ($atom->is_operator())
+	my ($self, $op) = @_;
+	die("Cannot handle " . Dumper($op)) if ref $op ne "Operator";
+	# Symbols are internal symbols/operators or values or programs defined by the user.
+	my $what = $op->{ value };
+	if ($what eq "+")
 	{
-		if ($operation eq "+")
+		$self->add();
+		return;
+	}
+	elsif ($what eq "-")
+	{
+		$self->add( invert => 1 );
+		return;
+	}
+	elsif ($what eq "*")
+	{
+		$self->mul();
+		return;
+	}
+	elsif ($what eq "/")
+	{
+		$self->mul( invert => 1 );
+		return;
+	}
+	elsif ($what eq "dup")
+	{
+		if ($self->count_stack() >= 1)
 		{
-			$self->add();
+			my $a = $self->pop();
+			$self->push( $a );
+			$self->push( $a );
+		}
+		return;
+	}
+	elsif (($what eq "drop") || ($what eq "d"))
+	{
+		$self->drop();
+		return;
+	}
+	elsif (($what eq "copy") || ($what eq "cp"))
+	{
+		$self->copy();
+		return;
+	}
+	elsif ($what eq "swap")
+	{
+		if ($self->count_stack() >= 2)
+		{
+			my $b = $self->pop();
+			my $a = $self->pop();
+			$self->push( $b );
+			$self->push( $a );
 			return;
-		}
-		elsif ($operation eq "-")
-		{
-			$self->add( invert => 1 );
-			return;
-		}
-		elsif ($operation eq "*")
-		{
-			$self->mul();
-			return;
-		}
-		elsif ($operation eq "/")
-		{
-			$self->mul( invert => 1 );
-			return;
-		}
-		elsif (($operation eq "drop") || ($operation eq "d"))
-		{
-			$self->drop();
-			return;
-		}
-		elsif (($operation eq "copy") || ($operation eq "cp"))
-		{
-			$self->copy();
-			return;
-		}
-		elsif ($operation eq "swap")
-		{
-			if ($self->count_stack() >= 2)
-			{
-				my $b = $self->pop();
-				my $a = $self->pop();
-				$self->push( $b );
-				$self->push( $a );
-			}
-		}
-		elsif (($operation eq "clear") || ($operation eq "clr"))
-		{
-			$self->{ stack } = [];
-		}
-		else {
-			die("unknown operation >$operation<");
 		}
 	}
-	else
+	elsif (($what eq "clear") || ($what eq "clr"))
 	{
-		die("Unknown type >" . $atom->{ type } . "<");
+		$self->{ stack } = [];
+		return;
 	}
+	elsif ($what eq "sto")
+	{
+		$self->store();
+		return;
+	}
+
+	## 2. or is it defined in our defs?
+	#elsif (defined( $self->{ defs }->{ $what } ))
+	#{
+	#	# a list of Element objects
+	#	# copy them on the stack:
+	#	my $subroutine = $self->{ defs }->{ $what };
+	#	foreach my $e (@$subroutine)
+	#	{
+	#		$self->push( $e );
+	#	}
+	#	return;
+	#}
+	print "WARNING unknown symbol >$what<. Skipped.\n"; # die?
 }
 
 # ----------------------------------------------------------------------------
@@ -318,7 +317,7 @@ sub show
 	if (scalar keys %{ $vars })
 	{
 		my $s = "";
-		map { $s .= "$_=" . $vars->{ $_ } . " " } sort keys %{ $vars };
+		map { $s .= "$_=" . $vars->{ $_ }->value() . " " } sort keys %{ $vars };
 		print "VARS: " . substr($s, 0, -1) . "\n";
 	}
 	
@@ -330,9 +329,13 @@ sub show
 	for (my $i = $number - 1; $i >= 0; $i--)
 	{
 		my $atom = $stack->[ $i ];
-		if ($atom->{type} eq Element->NUMBER)
+		if (ref $atom eq "Number")
 		{
 			printf("  %2s : %s\n", '#' . $i, $atom->{value}); # TODO add format
+		}
+		elsif (ref $atom eq "String")
+		{
+			printf("  %2s : %s\n", '#' . $i, ">>" . $atom->{value} . "<<"); # TODO add format
 		}
 		else {
 			printf("  %2s : %s\n", '#' . $i, "unknown entity: " . Dumper($atom));
